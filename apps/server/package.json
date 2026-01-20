@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "npx tsx watch src/index.ts",
     "dev:once": "npx tsx src/index.ts",
-    "build": "echo 'Server uses tsx for dev, skipping tsc build'",
-    "start": "node dist/index.js",
+    "build": "npm install",
+    "start": "npx tsx src/index.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev"
