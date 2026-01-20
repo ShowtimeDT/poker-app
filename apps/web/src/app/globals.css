@@ -1,0 +1,1156 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Great+Vibes&display=swap');
+
+@layer base {
+  * {
+    @apply border-purple-900/30;
+  }
+
+  html {
+    @apply antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  body {
+    @apply bg-dark text-white min-h-screen;
+    background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 50%, #2a2a2a 100%);
+  }
+
+  ::selection {
+    @apply bg-gold/30 text-gold-light;
+  }
+}
+
+@layer components {
+  /* Card styles */
+  .playing-card {
+    @apply relative w-16 h-24 rounded-card bg-card-white shadow-card;
+    @apply transform transition-all duration-200;
+    @apply hover:shadow-card-hover hover:-translate-y-1;
+    perspective: 1000px;
+  }
+
+  .playing-card-back {
+    /* Combined background with pattern over solid gradient - no transparency */
+    background:
+      repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(212, 175, 55, 0.1) 10px,
+        rgba(212, 175, 55, 0.1) 20px
+      ),
+      linear-gradient(to bottom right, rgb(88, 28, 135), rgb(59, 7, 100));
+  }
+
+  /* Chip styles */
+  .poker-chip {
+    @apply relative w-12 h-12 rounded-full shadow-chip;
+    @apply flex items-center justify-center font-bold text-sm;
+    @apply border-4 border-dashed;
+  }
+
+  .chip-white { @apply bg-gray-100 border-gray-300 text-gray-800; }
+  .chip-red { @apply bg-red-600 border-red-400 text-white; }
+  .chip-blue { @apply bg-blue-600 border-blue-400 text-white; }
+  .chip-green { @apply bg-green-600 border-green-400 text-white; }
+  .chip-black { @apply bg-gray-900 border-gray-600 text-white; }
+  .chip-purple { @apply bg-purple-600 border-purple-400 text-white; }
+  .chip-gold { @apply bg-gold border-gold-light text-dark; }
+
+  /* Button styles */
+  .btn {
+    @apply px-6 py-3 rounded-lg font-semibold transition-all duration-200;
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark;
+  }
+
+  .btn-primary {
+    @apply bg-gold text-dark hover:bg-gold-light;
+    @apply focus:ring-gold shadow-glow-gold hover:shadow-glow-gold;
+  }
+
+  .btn-secondary {
+    @apply bg-purple-800 text-white hover:bg-purple-700;
+    @apply border border-gold/20 hover:border-gold/40;
+  }
+
+  .btn-danger {
+    @apply bg-accent-red text-white hover:bg-red-700;
+    @apply focus:ring-accent-red;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent text-gold hover:bg-gold/10;
+    @apply border border-gold/30 hover:border-gold;
+  }
+
+  .btn-purple {
+    @apply bg-purple-600 text-white hover:bg-purple-500;
+    @apply focus:ring-purple-500 shadow-glow-purple hover:shadow-glow-purple;
+  }
+
+  /* Action buttons for poker - Premium casino style */
+  .action-btn {
+    @apply px-8 py-4 rounded-xl font-bold text-lg uppercase tracking-wide;
+    @apply transform transition-all duration-150;
+    @apply hover:scale-105 active:scale-95;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100;
+    @apply relative overflow-hidden;
+    /* Glossy effect */
+    background-image: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 50%, rgba(0,0,0,0.1) 100%);
+  }
+
+  .action-btn::before {
+    content: '';
+    @apply absolute inset-0 opacity-0 transition-opacity duration-200;
+    background: radial-gradient(circle at center, rgba(255,255,255,0.3) 0%, transparent 70%);
+  }
+
+  .action-btn:hover::before {
+    @apply opacity-100;
+  }
+
+  .action-btn:active {
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .action-fold {
+    @apply bg-gray-700 text-gray-300 hover:bg-gray-600;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+  .action-fold:hover {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  }
+
+  .action-check {
+    @apply bg-purple-700 text-white hover:bg-purple-600;
+    box-shadow: 0 4px 12px rgba(147, 51, 234, 0.3);
+  }
+  .action-check:hover {
+    box-shadow: 0 6px 20px rgba(147, 51, 234, 0.5);
+  }
+
+  .action-call {
+    @apply bg-emerald text-white hover:bg-emerald-light;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  }
+  .action-call:hover {
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+  }
+
+  .action-bet {
+    @apply bg-gold text-dark hover:bg-gold-light;
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
+  }
+  .action-bet:hover {
+    box-shadow: 0 6px 20px rgba(212, 175, 55, 0.6);
+  }
+
+  .action-raise {
+    @apply bg-orange-600 text-white hover:bg-orange-500;
+    box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3);
+  }
+  .action-raise:hover {
+    box-shadow: 0 6px 20px rgba(234, 88, 12, 0.5);
+  }
+
+  .action-allin {
+    @apply bg-ruby text-white hover:bg-ruby-light;
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+    animation: pulseRuby 1.5s ease-in-out infinite;
+  }
+  .action-allin:hover {
+    box-shadow: 0 6px 24px rgba(220, 38, 38, 0.6);
+  }
+
+  /* Poker table - Premium purple felt with gold border */
+  .poker-table {
+    @apply relative rounded-[45%];
+    background: radial-gradient(ellipse at center, #4a1c6b 0%, #3d1a5c 40%, #2d1245 70%, #1f0d30 100%);
+    box-shadow:
+      0 0 80px rgba(0, 0, 0, 0.9),
+      inset 0 0 60px rgba(0, 0, 0, 0.3),
+      0 0 0 8px #1a1a1a,
+      0 0 0 12px #c9a227,
+      0 0 0 14px #a88a20,
+      0 0 30px rgba(201, 162, 39, 0.3);
+  }
+
+  .poker-table::before {
+    content: '';
+    @apply absolute rounded-[44%] pointer-events-none;
+    inset: 2px;
+    border: 2px solid rgba(201, 162, 39, 0.4);
+  }
+
+  .poker-table::after {
+    content: '';
+    @apply absolute rounded-[43%] pointer-events-none;
+    inset: 8px;
+    border: 1px solid rgba(201, 162, 39, 0.15);
+  }
+
+  /* Input styles */
+  .input {
+    @apply w-full px-4 py-3 rounded-lg;
+    @apply bg-purple-950/50 border border-purple-700/30;
+    @apply text-white placeholder:text-gray-500;
+    @apply focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold;
+    @apply transition-colors duration-200;
+  }
+
+  /* Card container for animations */
+  .card-container {
+    @apply relative transform-gpu;
+    transform-style: preserve-3d;
+  }
+
+  /* Pot display */
+  .pot-display {
+    @apply absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2;
+    @apply bg-black/50 backdrop-blur-sm rounded-full px-6 py-3;
+    @apply border border-gold/40 text-gold font-bold text-xl;
+    @apply shadow-glow-gold;
+  }
+
+  /* Player seat */
+  .player-seat {
+    @apply absolute flex flex-col items-center gap-2;
+    @apply transition-all duration-300;
+  }
+
+  .player-avatar {
+    @apply w-16 h-16 rounded-full border-4 border-purple-600/50;
+    @apply bg-purple-900 overflow-hidden;
+  }
+
+  .player-avatar.active {
+    @apply border-gold shadow-glow-gold;
+  }
+
+  .player-info {
+    @apply bg-purple-950/80 backdrop-blur-sm rounded-lg px-3 py-2;
+    @apply text-center min-w-[100px] border border-purple-700/30;
+  }
+
+  .player-name {
+    @apply text-sm font-semibold text-white truncate max-w-[100px];
+  }
+
+  .player-chips {
+    @apply text-xs text-gold font-mono;
+  }
+
+  .player-bet {
+    @apply absolute bg-purple-950/80 backdrop-blur-sm rounded-full px-3 py-1;
+    @apply text-sm text-gold font-mono border border-gold/20;
+  }
+
+  /* Dealer button */
+  .dealer-button {
+    @apply w-8 h-8 rounded-full bg-gold text-dark;
+    @apply font-bold text-xs flex items-center justify-center;
+    @apply shadow-glow-gold border-2 border-gold-light;
+  }
+
+  /* Cards in hand */
+  .hand-cards {
+    @apply flex gap-1 -mt-2;
+  }
+
+  .hand-cards .playing-card {
+    @apply w-12 text-xs;
+    height: 4.5rem; /* 72px - custom height for cards */
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-purple-950/30 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-purple-600/50 rounded-full hover:bg-purple-500/60;
+  }
+
+  /* Card surfaces */
+  .surface-card {
+    @apply bg-dark-card border border-purple-800/30 rounded-xl;
+  }
+
+  .surface-elevated {
+    @apply bg-dark-elevated border border-purple-700/30 rounded-xl shadow-elevated;
+  }
+}
+
+@layer utilities {
+  .text-shadow {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .text-shadow-lg {
+    text-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+  }
+
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gold-gradient;
+  }
+
+  .gradient-text-purple {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #d4af37 100%);
+  }
+
+  .glass {
+    @apply bg-purple-900/10 backdrop-blur-md border border-purple-500/20;
+  }
+
+  .glass-dark {
+    @apply bg-black/40 backdrop-blur-md border border-purple-900/30;
+  }
+
+  .glass-gold {
+    @apply bg-gold/5 backdrop-blur-md border border-gold/20;
+  }
+
+  /* Animation utilities */
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .animate-pulse-gold {
+    animation: pulse-gold 2s ease-in-out infinite;
+  }
+
+  .animate-shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(212, 175, 55, 0.2) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+  }
+
+  .animate-card-deal {
+    animation: card-deal 0.5s ease-out forwards;
+  }
+
+  .animate-chip-bounce {
+    animation: chip-bounce 0.3s ease-out;
+  }
+
+  .shadow-glow-gold {
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.4);
+  }
+
+  .shadow-glow-purple {
+    box-shadow: 0 0 20px rgba(147, 51, 234, 0.4);
+  }
+
+  .shadow-glow-red {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+  }
+
+  .bg-purple-gradient {
+    background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 50%, #2a2a2a 100%);
+  }
+}
+
+/* Keyframes */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes pulse-gold {
+  0%, 100% { box-shadow: 0 0 20px rgba(212, 175, 55, 0.4); }
+  50% { box-shadow: 0 0 35px rgba(212, 175, 55, 0.6); }
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes card-deal {
+  0% {
+    transform: translateY(-100px) rotate(-20deg) scale(0.5);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) rotate(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes chip-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Card flip animation */
+.flip-card {
+  perspective: 1000px;
+}
+
+.flip-card-inner {
+  transition: transform 0.6s;
+  transform-style: preserve-3d;
+}
+
+.flip-card:hover .flip-card-inner,
+.flip-card.flipped .flip-card-inner {
+  transform: rotateY(180deg);
+}
+
+.flip-card-front,
+.flip-card-back {
+  backface-visibility: hidden;
+}
+
+.flip-card-back {
+  transform: rotateY(180deg);
+}
+
+/* Winner highlight effect */
+.winner-highlight {
+  animation: winner-glow 1s ease-in-out infinite alternate;
+}
+
+@keyframes winner-glow {
+  from {
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.5), 0 0 20px rgba(212, 175, 55, 0.3);
+  }
+  to {
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.8), 0 0 40px rgba(212, 175, 55, 0.5);
+  }
+}
+
+/* Turn indicator pulsing */
+.turn-indicator {
+  animation: turn-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes turn-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+}
+
+/* Confetti effect */
+.confetti {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+  animation: confetti-fall 3s linear forwards;
+}
+
+@keyframes confetti-fall {
+  0% {
+    opacity: 1;
+    transform: translateY(-100vh) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(100vh) rotate(720deg);
+  }
+}
+
+/* Ruby/All-in pulse animation */
+@keyframes pulseRuby {
+  0%, 100% {
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+  }
+  50% {
+    box-shadow: 0 4px 24px rgba(220, 38, 38, 0.7), 0 0 40px rgba(220, 38, 38, 0.3);
+  }
+}
+
+/* Gold shimmer for text and elements */
+@keyframes goldShimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.gold-shimmer-text {
+  background: linear-gradient(
+    90deg,
+    #d4af37 0%,
+    #ffe066 25%,
+    #d4af37 50%,
+    #ffe066 75%,
+    #d4af37 100%
+  );
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: goldShimmer 3s linear infinite;
+}
+
+/* Spotlight effect for active player */
+.spotlight-effect {
+  position: relative;
+}
+
+.spotlight-effect::before {
+  content: '';
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(212, 175, 55, 0.2) 0%, transparent 70%);
+  animation: spotlight 1.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes spotlight {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+}
+
+/* Thinking dots animation */
+.thinking-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.thinking-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: thinkingDot 1.4s ease-in-out infinite;
+}
+
+.thinking-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.thinking-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes thinkingDot {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+
+/* Action ripple effect */
+.action-ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.action-ripple::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.action-ripple.rippling::after {
+  animation: actionRipple 0.6s ease-out;
+}
+
+@keyframes actionRipple {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2);
+    opacity: 0;
+  }
+}
+
+/* Fire/streak effect */
+.fire-effect {
+  position: relative;
+}
+
+.fire-effect::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 50%, #dc2626 100%);
+  opacity: 0.5;
+  filter: blur(8px);
+  animation: fireFlicker 0.3s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes fireFlicker {
+  0% {
+    transform: scale(1) rotate(-1deg);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(1.05) rotate(1deg);
+    opacity: 0.6;
+  }
+}
+
+/* Winner celebration glow */
+.winner-glow {
+  animation: winnerGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes winnerGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(250, 204, 21, 0.4), 0 0 40px rgba(250, 204, 21, 0.2);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(250, 204, 21, 0.7), 0 0 80px rgba(250, 204, 21, 0.4);
+    transform: scale(1.02);
+  }
+}
+
+/* Floating action label */
+.floating-action {
+  animation: floatingAction 0.5s ease-out forwards;
+}
+
+@keyframes floatingAction {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-10px) scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Chip count animation */
+.chip-count-change {
+  animation: chipCountChange 0.4s ease-out;
+}
+
+@keyframes chipCountChange {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+    color: #f4d03f;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Ambient particles (sparkles) */
+.sparkle-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.sparkle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: radial-gradient(circle, rgba(212, 175, 55, 0.8) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: floatSparkle 3s ease-in-out infinite;
+}
+
+@keyframes floatSparkle {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 0.3;
+  }
+  50% {
+    transform: translateY(-20px) rotate(180deg);
+    opacity: 0.8;
+  }
+}
+
+/* Status badge animations */
+.badge-pulse {
+  animation: badgePulse 2s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+
+/* Vignette effect */
+.vignette {
+  position: relative;
+}
+
+.vignette::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.4) 100%);
+}
+
+/* =============================================================================
+   ROOM PAGE LAYOUT
+   ============================================================================= */
+
+.room-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%);
+  overflow: hidden;
+  position: relative;
+}
+
+.room-header-left {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.room-header-right {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.back-button {
+  color: #9ca3af;
+  font-size: 0.875rem;
+  transition: color 0.2s;
+}
+
+.back-button:hover {
+  color: white;
+}
+
+.room-title {
+  font-weight: 600;
+  color: white;
+  font-size: 0.875rem;
+}
+
+.room-code {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.copy-button {
+  transition: color 0.2s;
+}
+
+.copy-button:hover {
+  color: #c9a227;
+}
+
+.sit-out-button {
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  background: rgba(55, 65, 81, 0.8);
+  color: #d1d5db;
+}
+
+.sit-out-button:hover {
+  background: rgba(75, 85, 99, 1);
+}
+
+.sit-out-button.active {
+  background: #16a34a;
+  color: white;
+}
+
+.sit-out-button.active:hover {
+  background: #22c55e;
+}
+
+.header-icon-button {
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+  color: #9ca3af;
+  background: rgba(31, 41, 55, 0.5);
+}
+
+.header-icon-button:hover {
+  color: white;
+}
+
+.header-icon-button.active {
+  background: #7c3aed;
+  color: white;
+}
+
+.header-icon-button.danger:hover {
+  color: #ef4444;
+}
+
+.game-area {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.table-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Padding: top for header, sides for edge spacing, bottom for action buttons */
+  padding: 0.5rem 2rem 7rem 2rem;
+}
+
+.poker-table-wrapper {
+  width: 100%;
+  height: 100%;
+  max-width: 1400px;
+  max-height: calc(100vh - 12rem); /* Leave room for header and action buttons */
+  aspect-ratio: 16 / 9;
+  /* Center the table if it hits max constraints */
+  margin: auto;
+}
+
+/* =============================================================================
+   ACTION BAR & BUTTONS (Premium Design)
+   ============================================================================= */
+
+.action-bar-wrapper {
+  flex-shrink: 0;
+}
+
+.action-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: linear-gradient(to top, #0a0a0a 0%, #121212 100%);
+  border-top: 1px solid #2a2a2a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1rem;
+}
+
+.action-bar-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: 900px;
+  width: 100%;
+}
+
+/* Center buttons when no raise options available */
+.action-bar-content-centered {
+  justify-content: center;
+}
+
+/* Action Buttons - UNIFORM GOLD DESIGN */
+.action-button {
+  position: relative;
+  height: 52px;
+  min-width: 100px;
+  padding: 0 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 700;
+  font-size: 0.875rem;
+  transition: all 0.15s;
+  overflow: hidden;
+  cursor: pointer;
+  border: none;
+
+  /* Gold styling - default for all buttons */
+  background: linear-gradient(135deg, #d4af37 0%, #c9a227 100%);
+  color: #1a1a1a;
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
+}
+
+.action-button:hover:not(.disabled) {
+  background: linear-gradient(135deg, #ffe066 0%, #d4af37 100%);
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.6);
+}
+
+.action-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-button-label {
+  position: relative;
+  z-index: 10;
+}
+
+.action-button-ripple {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+  margin-left: -20px;
+  margin-top: -20px;
+}
+
+/* Individual button classes - all inherit the same gold styling */
+/* Keep classes for potential future customization, but no overrides */
+.action-button-fold,
+.action-button-check,
+.action-button-call,
+.action-button-raise,
+.action-button-allin {
+  /* All use the default gold styling from .action-button */
+}
+
+/* Raise Section */
+.raise-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+/* Preset Pills */
+.preset-pills {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.preset-pill {
+  height: 36px;
+  padding: 0 1rem;
+  border-radius: 18px;
+  background: #1f1f1f;
+  border: 1px solid #333;
+  color: #9ca3af;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.preset-pill:hover:not(:disabled) {
+  border-color: #c9a227;
+  color: #c9a227;
+}
+
+.preset-pill.selected {
+  background: #c9a227;
+  color: #1a1a1a;
+  border-color: #c9a227;
+}
+
+.preset-pill:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Raise Slider */
+.raise-slider {
+  width: 120px;
+  height: 6px;
+  border-radius: 3px;
+  background: #333;
+  appearance: none;
+  cursor: pointer;
+}
+
+.raise-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #d4af37, #c9a227);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+
+.raise-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #d4af37, #c9a227);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+
+.raise-slider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Amount Input */
+.amount-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.currency-symbol {
+  position: absolute;
+  left: 0.75rem;
+  color: #c9a227;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.amount-input {
+  width: 5rem;
+  height: 40px;
+  padding: 0 0.5rem 0 1.5rem;
+  border-radius: 0.375rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  text-align: right;
+  background: #1f1f1f;
+  border: 1px solid #333;
+  color: #c9a227;
+  transition: all 0.15s;
+}
+
+.amount-input:focus {
+  outline: none;
+  border-color: #c9a227;
+}
+
+.amount-input:disabled {
+  opacity: 0.5;
+}
+
+/* Hide number input spinners */
+.amount-input::-webkit-outer-spin-button,
+.amount-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.amount-input[type=number] {
+  -moz-appearance: textfield;
+}
+
+/* =============================================================================
+   PRE-TURN ACTIONS
+   ============================================================================= */
+
+.pre-turn-wrapper {
+  flex-shrink: 0;
+}
+
+.pre-turn-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(10, 10, 10, 0.5);
+  border-top: 1px solid rgba(42, 42, 42, 0.5);
+}
+
+.pre-turn-label {
+  color: #9ca3af;
+  font-size: 0.875rem;
+}
+
+.pre-turn-options {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.pre-turn-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  transition: all 0.15s;
+  background: rgba(31, 41, 55, 0.5);
+  color: #9ca3af;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.pre-turn-option:hover {
+  background: rgba(55, 65, 81, 0.5);
+}
+
+.pre-turn-option.selected {
+  background: rgba(124, 58, 237, 0.5);
+  color: white;
+  border: 1px solid rgba(124, 58, 237, 0.5);
+}
+
+.pre-turn-checkbox {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #c9a227;
+}

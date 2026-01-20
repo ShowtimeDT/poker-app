@@ -1,0 +1,227 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// USER & AUTHENTICATION
+// =============================================================================
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String?  @unique
+  avatarUrl    String?
+  isAnonymous  Boolean  @default(true)
+  chipsBalance Int      @default(10000)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  hostedRooms   Room[]        @relation("RoomHost")
+  roomPlayers   RoomPlayer[]
+  handResults   HandResult[]
+  playerActions PlayerAction[]
+
+  @@index([username])
+  @@index([email])
+}
+
+// =============================================================================
+// ROOMS & TABLES
+// =============================================================================
+
+model Room {
+  id           String      @id @default(cuid())
+  name         String
+  code         String      @unique // Short invite code
+  variant      GameVariant @default(TEXAS_HOLDEM)
+
+  // Stakes
+  smallBlind   Int
+  bigBlind     Int
+  minBuyIn     Int
+  maxBuyIn     Int
+
+  // Settings
+  maxPlayers   Int         @default(9)
+  isPrivate    Boolean     @default(true)
+  passwordHash String?
+
+  // Custom Rules (stored as JSON)
+  customRules  Json        @default("{}")
+
+  // State
+  status       RoomStatus  @default(WAITING)
+
+  // Relations
+  hostId       String
+  host         User        @relation("RoomHost", fields: [hostId], references: [id])
+  players      RoomPlayer[]
+  hands        Hand[]
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([code])
+  @@index([status])
+}
+
+model RoomPlayer {
+  id        String       @id @default(cuid())
+  roomId    String
+  userId    String
+  seat      Int
+  chips     Int
+  status    PlayerStatus @default(ACTIVE)
+  joinedAt  DateTime     @default(now())
+  leftAt    DateTime?
+
+  // Relations
+  room      Room         @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id])
+
+  @@unique([roomId, seat])
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+}
+
+// =============================================================================
+// GAME HISTORY
+// =============================================================================
+
+model Hand {
+  id             String         @id @default(cuid())
+  roomId         String
+  handNumber     Int
+  variant        GameVariant
+
+  // Positions
+  dealerSeat     Int
+  smallBlindSeat Int
+  bigBlindSeat   Int
+
+  // Cards (stored as JSON arrays)
+  communityCards Json           @default("[]")
+
+  // Pot
+  potTotal       Int            @default(0)
+
+  // Provably Fair
+  serverSeedHash String?
+  serverSeed     String?        // Revealed after hand
+
+  // State
+  status         HandStatus     @default(IN_PROGRESS)
+
+  // Relations
+  room           Room           @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  results        HandResult[]
+  actions        PlayerAction[]
+
+  startedAt      DateTime       @default(now())
+  completedAt    DateTime?
+
+  @@index([roomId])
+  @@index([roomId, handNumber])
+}
+
+model HandResult {
+  id           String   @id @default(cuid())
+  handId       String
+  oderId       String
+
+  // Cards (encrypted/hashed until reveal)
+  holeCards    Json     @default("[]")
+
+  // Result
+  finalHandRank String?
+  finalHandDesc String?
+  winnings     Int      @default(0)
+
+  // Relations
+  hand         Hand     @relation(fields: [handId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [oderId], references: [id])
+
+  @@unique([handId, oderId])
+  @@index([handId])
+  @@index([oderId])
+}
+
+model PlayerAction {
+  id         String     @id @default(cuid())
+  handId     String
+  oderId     String
+
+  // Action details
+  actionType ActionType
+  amount     Int?
+  phase      GamePhase
+
+  // Timestamp
+  timestamp  DateTime   @default(now())
+
+  // Relations
+  hand       Hand       @relation(fields: [handId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [oderId], references: [id])
+
+  @@index([handId])
+  @@index([oderId])
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum GameVariant {
+  TEXAS_HOLDEM
+  OMAHA
+  OMAHA_HI_LO
+  SEVEN_CARD_STUD
+  FIVE_CARD_DRAW
+  BLACKJACK
+}
+
+enum RoomStatus {
+  WAITING
+  PLAYING
+  PAUSED
+  CLOSED
+}
+
+enum PlayerStatus {
+  ACTIVE
+  SITTING_OUT
+  AWAY
+  DISCONNECTED
+}
+
+enum HandStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ActionType {
+  FOLD
+  CHECK
+  CALL
+  BET
+  RAISE
+  ALL_IN
+  SMALL_BLIND
+  BIG_BLIND
+}
+
+enum GamePhase {
+  PREFLOP
+  FLOP
+  TURN
+  RIVER
+  SHOWDOWN
+}

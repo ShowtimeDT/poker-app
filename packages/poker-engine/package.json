@@ -1,0 +1,39 @@
+{
+  "name": "@poker/engine",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    },
+    "./deck": {
+      "import": "./src/deck/index.ts",
+      "types": "./src/deck/index.ts"
+    },
+    "./evaluator": {
+      "import": "./src/evaluator/index.ts",
+      "types": "./src/evaluator/index.ts"
+    },
+    "./variants": {
+      "import": "./src/variants/index.ts",
+      "types": "./src/variants/index.ts"
+    }
+  },
+  "scripts": {
+    "test": "jest",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@poker/shared": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.0"
+  }
+}
