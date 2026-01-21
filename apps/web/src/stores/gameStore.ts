@@ -12,6 +12,7 @@ import type {
   SevenDeuceBonusInfo,
   StraddlePrompt,
   RunItPrompt,
+  Board,
 } from '@poker/shared';
 
 // =============================================================================
@@ -46,6 +47,10 @@ interface GameStore {
   // 7-2 Game Bonus
   sevenDeuceBonus: SevenDeuceBonusInfo | null;
 
+  // Run-it-twice/thrice boards (for animation before final state)
+  runItBoards: Board[] | null;
+  runItFinalChoice: 1 | 2 | 3 | null;
+
   // UI State
   isLoading: boolean;
   error: string | null;
@@ -69,6 +74,8 @@ interface GameStore {
   setSevenDeuceBonus: (bonus: SevenDeuceBonusInfo) => void;
   clearSevenDeuceBonus: () => void;
   setRunItPrompt: (prompt: RunItPrompt | null) => void;
+  setRunItResult: (boards: Board[], finalChoice: 1 | 2 | 3) => void;
+  clearRunItResult: () => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   reset: () => void;
@@ -94,6 +101,8 @@ const initialState = {
   turnTimerWarning: false,
   shownHands: new Map<string, Card[]>(),
   sevenDeuceBonus: null,
+  runItBoards: null,
+  runItFinalChoice: null,
   isLoading: false,
   error: null,
 };
@@ -143,13 +152,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
         mergedPlayers = Array.from(existingPlayersMap.values());
       }
 
+      // Clear end-of-hand data when a new hand starts (phase transitions from complete to preflop/starting)
+      const isNewHand = state && state.phase !== 'complete' && state.phase !== 'showdown';
+
       return {
         gameState: state,
         players: mergedPlayers,
-        // Clear winners, shown hands, and 7-2 bonus when a new hand starts (phase transitions from complete to preflop/starting)
-        winners: (state && state.phase !== 'complete' && state.phase !== 'showdown') ? [] : prev.winners,
-        shownHands: (state && state.phase !== 'complete' && state.phase !== 'showdown') ? new Map() : prev.shownHands,
-        sevenDeuceBonus: (state && state.phase !== 'complete' && state.phase !== 'showdown') ? null : prev.sevenDeuceBonus,
+        winners: isNewHand ? [] : prev.winners,
+        shownHands: isNewHand ? new Map() : prev.shownHands,
+        sevenDeuceBonus: isNewHand ? null : prev.sevenDeuceBonus,
+        runItBoards: isNewHand ? null : prev.runItBoards,
+        runItFinalChoice: isNewHand ? null : prev.runItFinalChoice,
       };
     }),
 
@@ -227,6 +240,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
           runItPrompt: prompt ?? undefined,
         },
       };
+    }),
+
+  setRunItResult: (boards, finalChoice) =>
+    set({
+      runItBoards: boards,
+      runItFinalChoice: finalChoice,
+    }),
+
+  clearRunItResult: () =>
+    set({
+      runItBoards: null,
+      runItFinalChoice: null,
     }),
 
   setLoading: (loading) =>

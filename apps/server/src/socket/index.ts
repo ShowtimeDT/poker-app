@@ -373,19 +373,26 @@ function finalizeRunIt(
     const boards = roomManager.executeRunIt(roomId, finalChoice);
 
     if (boards) {
-      // Emit run-it result
-      io.to(roomId).emit('game:run-it-result', { boards, finalChoice });
+      // Strip winners from boards for the result event (clients should animate first)
+      const boardsWithoutWinners = boards.map(b => ({
+        ...b,
+        winners: [], // Hide winners until after animation
+      }));
 
-      // Broadcast updated state
-      broadcastGameState(io, roomManager, roomId);
+      // Emit run-it result (without winners so client can animate)
+      io.to(roomId).emit('game:run-it-result', { boards: boardsWithoutWinners, finalChoice });
 
-      // Get winners
+      // Get winners (already calculated by executeRunIt)
       const winners = activeRoom.gameState.getLastWinners();
 
       // Calculate delay for winner announcement (let boards animate)
       const boardAnimationDelay = finalChoice * 2000; // 2s per board
 
+      // Delay broadcasting full state until after animation completes
+      // This prevents the client from seeing winners early via game:state
       setTimeout(() => {
+        // Now broadcast the full state with winners
+        broadcastGameState(io, roomManager, roomId);
         io.to(roomId).emit('game:winner', winners);
         // Emit 7-2 bonus if applicable
         const state = roomManager.getGameState(roomId);

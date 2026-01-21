@@ -28,6 +28,8 @@ export function useSocket() {
     setShownHand,
     setSevenDeuceBonus,
     setRunItPrompt,
+    setRunItResult,
+    clearRunItResult,
     setError,
   } = useGameStore();
 
@@ -102,9 +104,10 @@ export function useSocket() {
       // Player made a choice - the updated prompt will come via game:run-it-prompt
     });
 
-    socket.on('game:run-it-result', (data: any) => {
+    socket.on('game:run-it-result', (data: { boards: any[]; finalChoice: 1 | 2 | 3 }) => {
       console.log('[Socket] Run-it result:', data);
-      // The result boards will be in the game state update
+      // Store boards for animation display (winners will come later via game:state)
+      setRunItResult(data.boards, data.finalChoice);
     });
 
     // Room events
@@ -176,7 +179,7 @@ export function useSocket() {
       socket.off('room:settings-updated');
       socket.off('error');
     };
-  }, [token, setConnection, setRoom, updateRoom, setUser, setGameState, updatePlayer, updatePlayerPreference, removePlayer, addChatMessage, setWinners, setTurnTimer, setTurnTimerWarning, clearTurnTimer, setShownHand, setSevenDeuceBonus, setRunItPrompt, setError]);
+  }, [token, setConnection, setRoom, updateRoom, setUser, setGameState, updatePlayer, updatePlayerPreference, removePlayer, addChatMessage, setWinners, setTurnTimer, setTurnTimerWarning, clearTurnTimer, setShownHand, setSevenDeuceBonus, setRunItPrompt, setRunItResult, clearRunItResult, setError]);
 
   // Note: We intentionally do NOT disconnect the socket on component unmount.
   // The socket singleton should persist across component re-renders and React
