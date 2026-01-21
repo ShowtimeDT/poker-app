@@ -6,4 +6,3 @@ export { ActionButtons } from './ActionButtons';
 export { ActionFeedback, TableActionFlash, ActionHistory } from './ActionFeedback';
 export type { ActionFeedbackData } from './ActionFeedback';
 export { StreakIndicator, StreakCelebration, HotSeatGlow } from './StreakIndicator';
-export { RunItBoards } from './RunItBoards';

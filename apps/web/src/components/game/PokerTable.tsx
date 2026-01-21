@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import type { GameState, Card, WinnerInfo } from '@poker/shared';
+import type { GameState, Card, WinnerInfo, Board } from '@poker/shared';
 import { cn, formatChips } from '@/lib/utils';
 import { PlayingCard, CommunityCards, DualBoardCommunityCards } from './PlayingCard';
 import { PotDisplay, BetDisplay } from './ChipStack';
@@ -68,6 +68,9 @@ interface PokerTableProps {
   onSeatClick?: (seat: number) => void;
   maxSeats?: number;
   className?: string;
+  // Run-it-twice/thrice boards
+  runItBoards?: Board[] | null;
+  runItFinalChoice?: 1 | 2 | 3 | null;
 }
 
 // =============================================================================
@@ -86,6 +89,8 @@ export function PokerTable({
   onSeatClick,
   maxSeats = 9,
   className,
+  runItBoards,
+  runItFinalChoice,
 }: PokerTableProps) {
   const { players, communityCards, communityCards2, ghostCards, pot, dealerSeat, currentPlayerSeat, phase, isBombPot, isDualBoard } = gameState;
 
@@ -133,12 +138,20 @@ export function PokerTable({
       {/* Table Surface */}
       <TableSurface />
 
-      {/* Community Cards */}
+      {/* Community Cards / Run-It Boards */}
       <div className={cn(
         "absolute left-1/2 -translate-x-1/2 -translate-y-1/2 z-20",
+        // Adjust vertical position based on number of boards
+        runItBoards && runItBoards.length > 1 ? "top-[38%]" :
         isDualBoard && communityCards2 ? "top-[40%]" : "top-[42%]"
       )}>
-        {isDualBoard && communityCards2 ? (
+        {/* Run-it-twice/thrice boards */}
+        {runItBoards && runItBoards.length > 1 && runItFinalChoice && runItFinalChoice > 1 ? (
+          <RunItBoardsDisplay
+            boards={runItBoards}
+            finalChoice={runItFinalChoice}
+          />
+        ) : isDualBoard && communityCards2 ? (
           <DualBoardCommunityCards
             board1Cards={communityCards}
             board2Cards={communityCards2}
@@ -463,6 +476,65 @@ function DealerButton({ visualPosition, visible, seatPositions }: DealerButtonPr
     >
       D
     </motion.div>
+  );
+}
+
+// =============================================================================
+// RUN-IT BOARDS DISPLAY
+// =============================================================================
+
+interface RunItBoardsDisplayProps {
+  boards: Board[];
+  finalChoice: 2 | 3;
+}
+
+/**
+ * Display multiple run-it boards stacked vertically on the table
+ * Similar layout to DualBoardCommunityCards but supports 2 or 3 boards
+ */
+function RunItBoardsDisplay({ boards, finalChoice }: RunItBoardsDisplayProps) {
+  // Board colors for visual distinction
+  const boardStyles = [
+    { labelColor: 'text-gold', borderColor: 'border-gold/30' },
+    { labelColor: 'text-purple-400', borderColor: 'border-purple-400/30' },
+    { labelColor: 'text-blue-400', borderColor: 'border-blue-400/30' },
+  ];
+
+  return (
+    <div className="flex flex-col gap-1 items-center">
+      {boards.map((board, index) => (
+        <div key={board.index} className="relative">
+          {/* Board Label */}
+          <div className={cn(
+            "absolute -left-6 top-1/2 -translate-y-1/2",
+            "text-[10px] font-bold tracking-wider uppercase",
+            "bg-black/40 px-1.5 py-0.5 rounded",
+            boardStyles[index]?.labelColor
+          )}>
+            {index + 1}
+          </div>
+
+          {/* Community Cards for this board */}
+          <div className={cn(
+            "flex gap-1.5 items-center justify-center",
+            "p-1 rounded",
+            boardStyles[index]?.borderColor,
+            "border border-transparent"
+          )}>
+            {board.communityCards.map((card, cardIndex) => (
+              <PlayingCard
+                key={`${board.index}-${cardIndex}-${card.code}`}
+                card={card}
+                size="sm"
+                animationDelay={index * 1.0 + cardIndex * 0.15}
+                dramaticReveal={cardIndex === 4}
+                dealFrom="top"
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
