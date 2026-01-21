@@ -143,13 +143,15 @@ export default function CreateRoomPage() {
             />
           </div>
 
-          {/* Game Variant */}
+          {/* Game Variant - Currently only Texas Hold'em */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Game Type
             </label>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {Object.entries(VARIANT_CONFIG).map(([key, config]) => (
+              {Object.entries(VARIANT_CONFIG)
+                .filter(([key]) => key === 'texas-holdem')
+                .map(([key, config]) => (
                 <button
                   key={key}
                   type="button"
@@ -162,7 +164,7 @@ export default function CreateRoomPage() {
                   )}
                 >
                   <div className="font-medium">{config.name}</div>
-                  <div className="text-xs mt-1 opacity-70">{config.description.slice(0, 40)}...</div>
+                  <div className="text-xs mt-1 opacity-70">{config.description}</div>
                 </button>
               ))}
             </div>
