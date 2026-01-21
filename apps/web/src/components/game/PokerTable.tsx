@@ -149,7 +149,7 @@ export function PokerTable({
         {runItBoards && runItBoards.length > 1 && runItFinalChoice && runItFinalChoice > 1 ? (
           <RunItBoardsDisplay
             boards={runItBoards}
-            finalChoice={runItFinalChoice}
+            finalChoice={runItFinalChoice as 2 | 3}
           />
         ) : isDualBoard && communityCards2 ? (
           <DualBoardCommunityCards
