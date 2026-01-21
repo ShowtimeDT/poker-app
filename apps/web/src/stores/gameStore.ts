@@ -224,7 +224,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return {
         gameState: {
           ...state.gameState,
-          runItPrompt: prompt,
+          runItPrompt: prompt ?? undefined,
         },
       };
     }),
