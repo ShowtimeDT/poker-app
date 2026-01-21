@@ -234,10 +234,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
         return state;
       }
       console.log('[Store] Updating runItPrompt:', prompt);
+      // Convert null to undefined for GameState compatibility
+      const updatedPrompt: RunItPrompt | undefined = prompt === null ? undefined : prompt;
       return {
         gameState: {
           ...state.gameState,
-          runItPrompt: prompt ?? undefined,
+          runItPrompt: updatedPrompt,
         },
       };
     }),
