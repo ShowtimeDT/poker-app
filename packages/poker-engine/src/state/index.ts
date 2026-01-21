@@ -724,6 +724,30 @@ export class PokerGameState {
     const totalPot = this.sidePots.reduce((sum, sp) => sum + sp.amount, 0);
 
     console.log('[RunIt] Total pot from sidePots:', totalPot, 'Running it', times, 'times');
+    console.log('[RunIt] Remaining cards to deal per board:', remaining);
+    console.log('[RunIt] Deck remaining before dealing:', this.deck.remaining());
+
+    // CRITICAL: Deal ALL cards for ALL boards upfront to ensure no duplicates
+    // This deals (remaining * times) cards from the deck in one continuous operation
+    const totalCardsNeeded = remaining * times;
+    const allDealtCards: Card[] = [];
+
+    for (let i = 0; i < totalCardsNeeded; i++) {
+      const card = this.deck.deal();
+      if (card) {
+        allDealtCards.push(card);
+      }
+    }
+
+    console.log('[RunIt] Dealt cards for all boards:', allDealtCards.map(c => c.code));
+
+    // Verify no duplicates in dealt cards
+    const cardCodes = allDealtCards.map(c => c.code);
+    const uniqueCodes = new Set(cardCodes);
+    if (uniqueCodes.size !== cardCodes.length) {
+      console.error('[RunIt] CRITICAL ERROR: Duplicate cards detected in dealt cards!');
+      console.error('[RunIt] Card codes:', cardCodes);
+    }
 
     this.runItBoards = [];
 
@@ -731,11 +755,13 @@ export class PokerGameState {
       // Start from existing community cards
       const boardCards = [...existingCards];
 
-      // Deal remaining cards for this board
-      for (let j = 0; j < remaining; j++) {
-        const card = this.deck.deal();
-        if (card) boardCards.push(card);
-      }
+      // Add the pre-dealt cards for this board (slice from allDealtCards)
+      const startIdx = i * remaining;
+      const endIdx = startIdx + remaining;
+      const boardRunoutCards = allDealtCards.slice(startIdx, endIdx);
+      boardCards.push(...boardRunoutCards);
+
+      console.log('[RunIt] Board', i, 'cards:', boardCards.map(c => c.code));
 
       // Calculate pot share for this board (divide total evenly, give remainder to first board)
       const potShare = Math.floor(totalPot / times) + (i === 0 ? totalPot % times : 0);
@@ -746,6 +772,19 @@ export class PokerGameState {
         winners: [],
         potShare,
       });
+    }
+
+    // Final verification: check for duplicates across all boards
+    const allBoardCards: string[] = [];
+    for (const board of this.runItBoards) {
+      // Only check the runout cards (not the shared flop)
+      const runoutCards = board.communityCards.slice(existingCards.length);
+      allBoardCards.push(...runoutCards.map(c => c.code));
+    }
+    const uniqueBoardCards = new Set(allBoardCards);
+    if (uniqueBoardCards.size !== allBoardCards.length) {
+      console.error('[RunIt] CRITICAL ERROR: Duplicate cards across boards!');
+      console.error('[RunIt] All runout cards:', allBoardCards);
     }
 
     // Resolve each board with side pot awareness

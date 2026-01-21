@@ -552,6 +552,59 @@ describe('Run It Twice/Thrice', () => {
         expect(boards[1].communityCards.length).toBe(5);
       }
     });
+
+    it('should NEVER have duplicate cards across multiple boards', () => {
+      // This is a critical test for card integrity
+      const game = new PokerGameState(
+        'test-room',
+        'texas-holdem',
+        { smallBlind: 5, bigBlind: 10 },
+        runItThriceRules
+      );
+
+      game.addPlayer(createMockPlayer('p1', 0, 1000));
+      game.addPlayer(createMockPlayer('p2', 1, 1000));
+
+      game.startHand();
+
+      // Play to flop
+      game.processAction('p1', { type: 'call', timestamp: Date.now() });
+      game.processAction('p2', { type: 'check', timestamp: Date.now() });
+
+      // On flop, both go all-in
+      game.processAction('p2', { type: 'all-in', timestamp: Date.now() });
+      game.processAction('p1', { type: 'all-in', timestamp: Date.now() });
+
+      if (game.canRunItMultiple()) {
+        game.startRunItPrompt();
+        const boards = game.executeRunIt(3);
+
+        expect(boards.length).toBe(3);
+
+        // Get the shared flop cards (first 3 cards of any board)
+        const flopCards = boards[0].communityCards.slice(0, 3).map(c => c.code);
+
+        // Collect all runout cards (turn + river) across all boards
+        const allRunoutCards: string[] = [];
+        for (const board of boards) {
+          // Runout cards are positions 3 and 4 (turn and river)
+          const runoutCards = board.communityCards.slice(3).map(c => c.code);
+          allRunoutCards.push(...runoutCards);
+        }
+
+        // Verify no duplicates in runout cards
+        const uniqueRunoutCards = new Set(allRunoutCards);
+        expect(uniqueRunoutCards.size).toBe(allRunoutCards.length);
+
+        // Verify runout cards don't include any flop cards
+        for (const card of allRunoutCards) {
+          expect(flopCards).not.toContain(card);
+        }
+
+        // With 3 boards running turn+river, we should have 6 unique runout cards
+        expect(allRunoutCards.length).toBe(6);
+      }
+    });
   });
 
   describe('resolveMultipleBoards() - pot distribution', () => {
