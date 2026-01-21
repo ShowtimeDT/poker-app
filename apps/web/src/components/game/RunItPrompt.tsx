@@ -35,6 +35,15 @@ export function RunItPrompt({
 }: RunItPromptProps) {
   if (!prompt || !currentPlayerId) return null;
 
+  // DEBUG: Trace run-it prompt state
+  console.log('[RunItPrompt] State:', {
+    currentPlayerId,
+    eligiblePlayerIds: prompt.eligiblePlayerIds,
+    isEligible: prompt.eligiblePlayerIds.includes(currentPlayerId),
+    choices: prompt.choices,
+    myChoice: prompt.choices.find(c => c.playerId === currentPlayerId),
+  });
+
   // Check if current player is eligible
   const isEligible = prompt.eligiblePlayerIds.includes(currentPlayerId);
   const myChoice = prompt.choices.find(c => c.playerId === currentPlayerId);

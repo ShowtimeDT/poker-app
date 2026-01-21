@@ -277,6 +277,7 @@ export function useGameActions() {
   }, [token]);
 
   const sendRunItSelect = useCallback((choice: 1 | 2 | 3) => {
+    console.log('[Socket] Sending run-it-select:', choice);
     const socket = getSocket(token || undefined);
     socket.emit('game:run-it-select', choice);
   }, [token]);

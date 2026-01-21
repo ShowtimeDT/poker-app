@@ -263,6 +263,8 @@ export class RoomManager {
         ...activeRoom.room.customRules,
         ...settings.customRules,
       };
+      // Sync engine's rules with room's rules so settings take effect immediately
+      activeRoom.gameState.updateRules(activeRoom.room.customRules);
     }
 
     return activeRoom.room;

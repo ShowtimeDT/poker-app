@@ -216,7 +216,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setRunItPrompt: (prompt) =>
     set((state) => {
-      if (!state.gameState) return state;
+      if (!state.gameState) {
+        console.warn('[Store] setRunItPrompt: gameState is null, cannot update');
+        return state;
+      }
+      console.log('[Store] Updating runItPrompt:', prompt);
       return {
         gameState: {
           ...state.gameState,
