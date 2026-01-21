@@ -11,6 +11,7 @@ import { HostSettingsModal, RoomSettingsUpdate } from '@/components/game/HostSet
 import { SevenDeuceCelebration } from '@/components/game/SevenDeuceCelebration';
 import { StraddlePrompt } from '@/components/game/StraddlePrompt';
 import { RunItPrompt } from '@/components/game/RunItPrompt';
+import { RunItBoards } from '@/components/game/RunItBoards';
 import { useSocket, useGameActions } from '@/hooks/useSocket';
 import { useGameStore, selectIsMyTurn, selectCurrentPlayer } from '@/stores/gameStore';
 import { cn } from '@/lib/utils';
@@ -52,6 +53,8 @@ export default function RoomPage() {
     shownHands,
     sevenDeuceBonus,
     clearSevenDeuceBonus,
+    runItBoards,
+    runItFinalChoice,
   } = useGameStore();
 
   const { joinRoom, leaveRoom, sitDown, sitOut, sendAction, sendChat, startGame, showHand, rebuy, setBombPotPreference, setStraddlePreference, updateRoomSettings, sendStraddle, sendRunItSelect, sendRunItConfirm } = useGameActions();
@@ -383,6 +386,16 @@ export default function RoomPage() {
           onConfirm={sendRunItConfirm}
           players={gameState.players.map(p => ({ oderId: p.oderId, name: p.odername }))}
         />
+      )}
+
+      {/* Run It Boards - displays multiple boards when running it twice/thrice */}
+      {runItBoards && runItBoards.length > 0 && runItFinalChoice && runItFinalChoice > 1 && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <RunItBoards
+            boards={runItBoards}
+            finalChoice={runItFinalChoice}
+          />
+        </div>
       )}
 
       {/* Show/Muck Buttons - appears when player wins by fold */}

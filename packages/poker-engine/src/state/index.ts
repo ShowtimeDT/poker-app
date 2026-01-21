@@ -1018,7 +1018,22 @@ export class PokerGameState {
       player.hasActed = false;
     }
 
-    // Deal community cards if applicable
+    // IMPORTANT: Check if all players are all-in BEFORE dealing community cards
+    // This ensures run-it-twice prompt appears before any runout cards are dealt
+    if (this.getActivePlayers().length <= 1) {
+      // Everyone is all-in or folded - check if we should offer run-it
+      if (this.canRunItMultiple()) {
+        // Set flag and return WITHOUT dealing cards
+        // Server will start the run-it prompt
+        this.runItPending = true;
+        return;
+      }
+      // Can't do run-it - run out all remaining cards normally
+      this.runOutToShowdown(true); // skipRunItCheck=true since we already checked
+      return;
+    }
+
+    // Normal betting round - deal community cards
     if (['flop', 'turn', 'river'].includes(nextPhase)) {
       this.dealCommunityCards();
       // Deal to second board if dual board
@@ -1027,15 +1042,7 @@ export class PokerGameState {
       }
     }
 
-    // Check if we need to run to showdown (all-in)
-    if (this.getActivePlayers().length <= 1) {
-      const shouldPromptRunIt = this.runOutToShowdown();
-      if (shouldPromptRunIt) {
-        this.runItPending = true;
-      }
-    } else {
-      this.setFirstToAct();
-    }
+    this.setFirstToAct();
   }
 
   /**
