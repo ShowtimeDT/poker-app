@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { SlidersIcon, ShieldIcon, GridIcon } from '@/components/ui/Icons';
+import { SlidersIcon, ShieldIcon } from '@/components/ui/Icons';
 import { HouseRulesLogo } from '@/components/ui/HouseRulesLogo';
 
 export default function HomePage() {
@@ -34,7 +34,7 @@ export default function HomePage() {
           className="text-xl md:text-2xl text-gray-300 mb-12 max-w-2xl mx-auto"
         >
           Create private rooms, set your own rules, and play with friends.
-          <span className="text-gold"> Texas Hold'em, Omaha, Blackjack</span> and more.
+          <span className="text-gold"> Texas Hold'em</span> and more.
         </motion.p>
 
         {/* CTA Buttons */}
@@ -57,22 +57,17 @@ export default function HomePage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8, duration: 0.5 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto"
+          className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto"
         >
           <FeatureCard
             icon={<SlidersIcon size={36} className="text-gold" />}
             title="Custom Rules"
-            description="Run it twice, bomb pots, straddles, dealer's choice - your game, your rules"
+            description="Run it twice, bomb pots, straddles - your game, your rules"
           />
           <FeatureCard
             icon={<ShieldIcon size={36} className="text-gold" />}
             title="Private Rooms"
             description="Invite-only tables with password protection for your home games"
-          />
-          <FeatureCard
-            icon={<GridIcon size={36} className="text-gold" />}
-            title="Multiple Games"
-            description="Switch between Hold'em, Omaha, Blackjack and more at the same table"
           />
         </motion.div>
       </motion.div>
