@@ -709,11 +709,21 @@ export class PokerGameState {
     const remaining = 5 - this.communityCards.length;
     const existingCards = [...this.communityCards];
 
+    // Debug: Log pot state before calculation
+    console.log('[RunIt] Before calculateSidePots:');
+    console.log('[RunIt]   this.pot:', this.pot);
+    console.log('[RunIt]   playerContributions:', Array.from(this.playerContributions.entries()));
+
     // Calculate side pots for proper pot distribution
     this.sidePots = this.calculateSidePots();
 
+    // Debug: Log calculated side pots
+    console.log('[RunIt] Calculated sidePots:', this.sidePots);
+
     // Calculate total pot across all side pots
     const totalPot = this.sidePots.reduce((sum, sp) => sum + sp.amount, 0);
+
+    console.log('[RunIt] Total pot from sidePots:', totalPot, 'Running it', times, 'times');
 
     this.runItBoards = [];
 
@@ -756,6 +766,9 @@ export class PokerGameState {
     const winners: WinnerInfo[] = [];
     const numBoards = this.runItBoards.length;
 
+    console.log('[resolveMultipleBoards] Starting resolution for', numBoards, 'boards');
+    console.log('[resolveMultipleBoards] Players in hand:', playersInHand.map(p => ({ id: p.oderId, chips: p.chips })));
+
     // Pre-evaluate hands for each board
     const boardHandResults = this.runItBoards.map(board => {
       return playersInHand.map(player => {
@@ -771,11 +784,15 @@ export class PokerGameState {
       eligiblePlayerIds: playersInHand.map(p => p.oderId),
     }];
 
+    console.log('[resolveMultipleBoards] Pots to distribute:', pots);
+
     // Process each side pot
     for (const pot of pots) {
       // Each side pot is split among boards, then among winners on each board
       const potPerBoard = Math.floor(pot.amount / numBoards);
       let potRemainder = pot.amount % numBoards;
+
+      console.log('[resolveMultipleBoards] Processing pot:', pot.amount, '-> potPerBoard:', potPerBoard);
 
       for (let boardIndex = 0; boardIndex < numBoards; boardIndex++) {
         const board = this.runItBoards[boardIndex];
@@ -798,6 +815,8 @@ export class PokerGameState {
         // Calculate pot share for this board (include remainder in first board)
         const boardPotShare = potPerBoard + (boardIndex === 0 ? potRemainder : 0);
 
+        console.log('[resolveMultipleBoards] Board', boardIndex, 'potShare:', boardPotShare, 'winners:', boardWinners.map(w => w.player.oderId));
+
         // Split board's pot share among winners
         const splitAmount = Math.floor(boardPotShare / boardWinners.length);
         let winnerRemainder = boardPotShare % boardWinners.length;
@@ -805,6 +824,8 @@ export class PokerGameState {
         for (const { player, result } of boardWinners) {
           const amount = splitAmount + (winnerRemainder > 0 ? 1 : 0);
           winnerRemainder--;
+
+          console.log('[resolveMultipleBoards] Awarding', amount, 'to', player.oderId, 'for board', boardIndex);
 
           if (amount > 0) {
             player.chips += amount;
@@ -825,6 +846,8 @@ export class PokerGameState {
         }
       }
     }
+
+    console.log('[resolveMultipleBoards] Final winners:', winners.map(w => ({ playerId: w.playerId, amount: w.amount, boardIndex: w.boardIndex })));
 
     this.phase = 'complete';
     this.lastWinners = winners;

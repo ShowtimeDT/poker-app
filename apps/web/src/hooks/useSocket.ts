@@ -106,6 +106,8 @@ export function useSocket() {
 
     socket.on('game:run-it-result', (data: { boards: any[]; finalChoice: 1 | 2 | 3 }) => {
       console.log('[Socket] Run-it result:', data);
+      // Clear the voting prompt immediately to close the modal
+      setRunItPrompt(null);
       // Store boards for animation display (winners will come later via game:state)
       setRunItResult(data.boards, data.finalChoice);
     });
