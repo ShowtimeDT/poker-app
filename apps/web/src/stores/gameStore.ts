@@ -11,6 +11,7 @@ import type {
   Card,
   SevenDeuceBonusInfo,
   StraddlePrompt,
+  RunItPrompt,
 } from '@poker/shared';
 
 // =============================================================================
@@ -67,6 +68,7 @@ interface GameStore {
   clearShownHands: () => void;
   setSevenDeuceBonus: (bonus: SevenDeuceBonusInfo) => void;
   clearSevenDeuceBonus: () => void;
+  setRunItPrompt: (prompt: RunItPrompt | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   reset: () => void;
@@ -211,6 +213,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   clearSevenDeuceBonus: () =>
     set({ sevenDeuceBonus: null }),
+
+  setRunItPrompt: (prompt) =>
+    set((state) => {
+      if (!state.gameState) return state;
+      return {
+        gameState: {
+          ...state.gameState,
+          runItPrompt: prompt,
+        },
+      };
+    }),
 
   setLoading: (loading) =>
     set({ isLoading: loading }),

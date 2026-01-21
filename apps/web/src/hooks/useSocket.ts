@@ -27,6 +27,7 @@ export function useSocket() {
     clearTurnTimer,
     setShownHand,
     setSevenDeuceBonus,
+    setRunItPrompt,
     setError,
   } = useGameStore();
 
@@ -91,8 +92,9 @@ export function useSocket() {
     // Run-it events
     socket.on('game:run-it-prompt', (prompt: any) => {
       console.log('[Socket] Run-it prompt received:', prompt);
-      // The prompt is included in the game state, but we also get it directly here
-      // The game state update from game:state will handle this
+      // Update the runItPrompt in gameState - this is important for real-time updates
+      // when players select/confirm choices
+      setRunItPrompt(prompt);
     });
 
     socket.on('game:run-it-decision', (data: any) => {
@@ -174,7 +176,7 @@ export function useSocket() {
       socket.off('room:settings-updated');
       socket.off('error');
     };
-  }, [token, setConnection, setRoom, updateRoom, setUser, setGameState, updatePlayer, updatePlayerPreference, removePlayer, addChatMessage, setWinners, setTurnTimer, setTurnTimerWarning, clearTurnTimer, setShownHand, setSevenDeuceBonus, setError]);
+  }, [token, setConnection, setRoom, updateRoom, setUser, setGameState, updatePlayer, updatePlayerPreference, removePlayer, addChatMessage, setWinners, setTurnTimer, setTurnTimerWarning, clearTurnTimer, setShownHand, setSevenDeuceBonus, setRunItPrompt, setError]);
 
   // Note: We intentionally do NOT disconnect the socket on component unmount.
   // The socket singleton should persist across component re-renders and React
