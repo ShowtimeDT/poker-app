@@ -22,7 +22,7 @@ export default function HomePage() {
           transition={{ delay: 0.2, duration: 0.5 }}
           className="mb-8"
         >
-          <HouseRulesLogo size="xl" shimmer={true} />
+          <HouseRulesLogo size="xl" shimmer={false} />
           <p className="text-purple-400 mt-2 text-lg">Poker Rooms</p>
         </motion.div>
 
