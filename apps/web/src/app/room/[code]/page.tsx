@@ -54,7 +54,7 @@ export default function RoomPage() {
     clearSevenDeuceBonus,
   } = useGameStore();
 
-  const { joinRoom, leaveRoom, sitDown, sitOut, sendAction, sendChat, startGame, showHand, rebuy, setBombPotPreference, setStraddlePreference, updateRoomSettings, sendStraddle, sendRunItChoice } = useGameActions();
+  const { joinRoom, leaveRoom, sitDown, sitOut, sendAction, sendChat, startGame, showHand, rebuy, setBombPotPreference, setStraddlePreference, updateRoomSettings, sendStraddle, sendRunItSelect, sendRunItConfirm } = useGameActions();
 
   const isMyTurn = useGameStore(selectIsMyTurn);
   const currentPlayer = useGameStore(selectCurrentPlayer);
@@ -379,7 +379,9 @@ export default function RoomPage() {
           currentPlayerId={userId}
           timeRemaining={turnTimeRemaining ?? 5}
           showThrice={room?.customRules?.runItThrice ?? false}
-          onChoice={sendRunItChoice}
+          onSelect={sendRunItSelect}
+          onConfirm={sendRunItConfirm}
+          players={gameState.players.map(p => ({ oderId: p.oderId, name: p.odername }))}
         />
       )}
 

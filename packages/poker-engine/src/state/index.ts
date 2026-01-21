@@ -66,6 +66,8 @@ export class PokerGameState {
   private lastStraddleSeat: number | null = null;  // Seat of last straddler (acts last preflop)
   private runItPrompt: RunItPrompt | null = null;  // Run it decision prompt
   private runItBoards: Board[] = [];  // Multiple boards when running it multiple times
+  private playerContributions: Map<string, number> = new Map();  // Total chips contributed per player across all rounds
+  private runItPending: boolean = false;  // True when waiting for run-it decision
 
   constructor(
     roomId: string,
@@ -231,6 +233,8 @@ export class PokerGameState {
     this.lastStraddleSeat = null;
     this.runItPrompt = null;
     this.runItBoards = [];
+    this.playerContributions.clear();
+    this.runItPending = false;
 
     // Move dealer button
     this.dealerSeat = this.getNextActiveSeat(this.dealerSeat);
@@ -244,6 +248,7 @@ export class PokerGameState {
         const amount = Math.min(bombPotAmount, player.chips);
         player.chips -= amount;
         this.pot += amount;
+        this.addContribution(player.oderId, amount);
       }
       this.phase = 'flop';
       this.dealCommunityCards();
@@ -283,6 +288,8 @@ export class PokerGameState {
         const anteAmount = Math.min(this.stakes.ante, player.chips);
         player.chips -= anteAmount;
         this.pot += anteAmount;
+        // Track contribution for side pot calculation
+        this.addContribution(player.oderId, anteAmount);
         // Note: antes don't count toward totalBetThisRound for betting purposes
       }
     }
@@ -300,6 +307,7 @@ export class PokerGameState {
       sbPlayer.bet = sbAmount;
       sbPlayer.totalBetThisRound = sbAmount;
       this.pot += sbAmount;
+      this.addContribution(sbPlayer.oderId, sbAmount);
     }
 
     if (bbPlayer && this.stakes.bigBlind > 0) {
@@ -309,7 +317,57 @@ export class PokerGameState {
       bbPlayer.totalBetThisRound = bbAmount;
       this.pot += bbAmount;
       this.currentBet = bbAmount;
+      this.addContribution(bbPlayer.oderId, bbAmount);
     }
+  }
+
+  /**
+   * Add contribution for a player (for side pot tracking)
+   */
+  private addContribution(playerId: string, amount: number): void {
+    const current = this.playerContributions.get(playerId) || 0;
+    this.playerContributions.set(playerId, current + amount);
+  }
+
+  /**
+   * Calculate side pots based on player contributions
+   * Returns array of pots with eligible players for each
+   */
+  private calculateSidePots(): SidePot[] {
+    const playersInHand = this.getPlayersInHand();
+
+    // Get contributions for players still in hand
+    const contributions = playersInHand.map(p => ({
+      playerId: p.oderId,
+      amount: this.playerContributions.get(p.oderId) || 0,
+    })).sort((a, b) => a.amount - b.amount);
+
+    if (contributions.length === 0) return [];
+
+    // Get unique contribution levels
+    const levels = [...new Set(contributions.map(c => c.amount))].sort((a, b) => a - b);
+
+    const sidePots: SidePot[] = [];
+    let previousLevel = 0;
+
+    for (const level of levels) {
+      // Players eligible for this pot are those who contributed >= this level
+      const eligible = contributions.filter(c => c.amount >= level).map(c => c.playerId);
+
+      // Pot amount is (level - previousLevel) * number of eligible players
+      const potAmount = (level - previousLevel) * eligible.length;
+
+      if (potAmount > 0 && eligible.length > 0) {
+        sidePots.push({
+          amount: potAmount,
+          eligiblePlayerIds: eligible,
+        });
+      }
+
+      previousLevel = level;
+    }
+
+    return sidePots;
   }
 
   /**
@@ -472,6 +530,7 @@ export class PokerGameState {
       player.totalBetThisRound = amount;
       this.pot += amount;
       this.currentBet = amount;
+      this.addContribution(player.oderId, amount);
 
       this.straddles.push({
         playerId: player.oderId,
@@ -518,9 +577,16 @@ export class PokerGameState {
     if (this.isBombPot) return false; // Skip for bomb pots
     if (this.isDualBoard) return false; // Already multi-board
 
-    // Need at least 2 players all-in
+    // Need at least 2 players still in the hand (not folded)
+    const playersInHand = this.getPlayersInHand();
+    if (playersInHand.length < 2) return false;
+
+    // All players must be all-in (no more betting action possible)
     const activePlayers = this.getActivePlayers();
-    const allInPlayers = activePlayers.filter(p => p.isAllIn);
+    if (activePlayers.length > 0) return false; // Still have players who can bet
+
+    // At least 2 players must be all-in
+    const allInPlayers = playersInHand.filter(p => p.isAllIn);
     return allInPlayers.length >= 2;
   }
 
@@ -534,23 +600,28 @@ export class PokerGameState {
     const eligiblePlayers = this.getPlayersInHand().filter(p => p.isAllIn);
     if (eligiblePlayers.length < 2) return null;
 
+    this.runItPending = false;  // Clear pending since prompt is now active
     this.runItPrompt = {
       eligiblePlayerIds: eligiblePlayers.map(p => p.oderId),
       timeoutSeconds: 5,
-      choices: eligiblePlayers.map(p => ({ playerId: p.oderId, choice: null })),
+      choices: eligiblePlayers.map(p => ({ playerId: p.oderId, choice: null, confirmed: false })),
     };
 
     return this.runItPrompt;
   }
 
   /**
-   * Process a run-it choice from a player
+   * Process a run-it choice from a player (click to select)
+   * Players can change their selection before confirming
    */
   processRunItChoice(playerId: string, choice: RunItChoice): boolean {
     if (!this.runItPrompt) return false;
 
     const playerChoice = this.runItPrompt.choices.find(c => c.playerId === playerId);
     if (!playerChoice) return false;
+
+    // Don't allow changes after confirming
+    if (playerChoice.confirmed) return false;
 
     // Validate choice
     if (choice === 3 && !this.customRules.runItThrice) {
@@ -565,25 +636,64 @@ export class PokerGameState {
   }
 
   /**
-   * Check if all run-it choices have been made
+   * Confirm a player's run-it choice (locks in their selection)
    */
-  allRunItChoicesMade(): boolean {
+  confirmRunItChoice(playerId: string): boolean {
     if (!this.runItPrompt) return false;
-    return this.runItPrompt.choices.every(c => c.choice !== null);
+
+    const playerChoice = this.runItPrompt.choices.find(c => c.playerId === playerId);
+    if (!playerChoice) return false;
+
+    // Can't confirm without making a choice first
+    if (playerChoice.choice === null) return false;
+
+    playerChoice.confirmed = true;
+    return true;
   }
 
   /**
-   * Get the final run-it choice (minimum of all choices)
+   * Check if all run-it choices have been confirmed
+   */
+  allRunItChoicesConfirmed(): boolean {
+    if (!this.runItPrompt) return false;
+    return this.runItPrompt.choices.every(c => c.confirmed);
+  }
+
+  /**
+   * Check if all confirmed choices are the same (for early resolution)
+   */
+  allConfirmedChoicesSame(): boolean {
+    if (!this.runItPrompt) return false;
+
+    const confirmedChoices = this.runItPrompt.choices.filter(c => c.confirmed && c.choice !== null);
+    if (confirmedChoices.length < 2) return false;
+
+    const firstChoice = confirmedChoices[0].choice;
+    return confirmedChoices.every(c => c.choice === firstChoice);
+  }
+
+  /**
+   * Get the final run-it choice based on the rules:
+   * - If both confirmed same choice -> that choice
+   * - If different choices or one didn't choose -> run once (disagreement)
    */
   getFinalRunItChoice(): RunItChoice {
     if (!this.runItPrompt) return 1;
 
-    const choices = this.runItPrompt.choices
-      .map(c => c.choice)
-      .filter((c): c is RunItChoice => c !== null);
+    // Get choices (confirmed or clicked)
+    const choices = this.runItPrompt.choices.map(c => ({
+      choice: c.choice ?? 1,  // Default to 1 if no choice
+      confirmed: c.confirmed,
+    }));
 
-    if (choices.length === 0) return 1;
-    return Math.min(...choices) as RunItChoice;
+    // If all choices are the same, use that choice
+    const allSame = choices.every(c => c.choice === choices[0].choice);
+    if (allSame) {
+      return choices[0].choice;
+    }
+
+    // Different choices = disagreement = run once
+    return 1;
   }
 
   /**
@@ -592,11 +702,18 @@ export class PokerGameState {
    */
   executeRunIt(times: RunItChoice): Board[] {
     this.runItPrompt = null;
+    this.runItPending = false;
     this.isRunout = true;
     this.runoutStartPhase = this.phase;
 
     const remaining = 5 - this.communityCards.length;
     const existingCards = [...this.communityCards];
+
+    // Calculate side pots for proper pot distribution
+    this.sidePots = this.calculateSidePots();
+
+    // Calculate total pot across all side pots
+    const totalPot = this.sidePots.reduce((sum, sp) => sum + sp.amount, 0);
 
     this.runItBoards = [];
 
@@ -610,8 +727,8 @@ export class PokerGameState {
         if (card) boardCards.push(card);
       }
 
-      // Calculate pot share (divide evenly, give remainder to first board)
-      const potShare = Math.floor(this.pot / times) + (i === 0 ? this.pot % times : 0);
+      // Calculate pot share for this board (divide total evenly, give remainder to first board)
+      const potShare = Math.floor(totalPot / times) + (i === 0 ? totalPot % times : 0);
 
       this.runItBoards.push({
         index: i,
@@ -621,50 +738,91 @@ export class PokerGameState {
       });
     }
 
-    // Resolve each board
+    // Resolve each board with side pot awareness
     this.resolveMultipleBoards();
 
     return this.runItBoards;
   }
 
   /**
-   * Resolve multiple boards and distribute pot shares
+   * Resolve multiple boards and distribute pot shares with side pot awareness
+   *
+   * For each board:
+   * - Evaluate all hands
+   * - For each side pot, distribute that pot's share to the winner among eligible players
    */
   private resolveMultipleBoards(): void {
     const playersInHand = this.getPlayersInHand();
     const winners: WinnerInfo[] = [];
+    const numBoards = this.runItBoards.length;
 
-    for (const board of this.runItBoards) {
-      // Evaluate hands for this board
-      const playerResults = playersInHand.map(player => {
+    // Pre-evaluate hands for each board
+    const boardHandResults = this.runItBoards.map(board => {
+      return playersInHand.map(player => {
         const holeCards = this.holeCards.get(player.oderId) || [];
         const result = this.variant.evaluatePlayerHand(holeCards, board.communityCards);
         return { player, result };
       });
+    });
 
-      // Find best hand(s)
-      const sorted = playerResults.sort((a, b) => compareHands(b.result, a.result));
-      const bestValue = sorted[0].result.value;
-      const boardWinners = sorted.filter(r => r.result.value === bestValue);
+    // If no side pots calculated, use total pot as single pot
+    const pots = this.sidePots.length > 0 ? this.sidePots : [{
+      amount: this.pot,
+      eligiblePlayerIds: playersInHand.map(p => p.oderId),
+    }];
 
-      // Split pot share among winners
-      const splitAmount = Math.floor(board.potShare / boardWinners.length);
-      let remainder = board.potShare % boardWinners.length;
+    // Process each side pot
+    for (const pot of pots) {
+      // Each side pot is split among boards, then among winners on each board
+      const potPerBoard = Math.floor(pot.amount / numBoards);
+      let potRemainder = pot.amount % numBoards;
 
-      for (const { player, result } of boardWinners) {
-        const amount = splitAmount + (remainder > 0 ? 1 : 0);
-        remainder--;
-        player.chips += amount;
+      for (let boardIndex = 0; boardIndex < numBoards; boardIndex++) {
+        const board = this.runItBoards[boardIndex];
+        const handResults = boardHandResults[boardIndex];
 
-        board.winners.push(player.oderId);
+        // Filter to only eligible players for this pot
+        const eligibleResults = handResults.filter(
+          hr => pot.eligiblePlayerIds.includes(hr.player.oderId)
+        );
 
-        winners.push({
-          playerId: player.oderId,
-          amount,
-          hand: result,
-          potType: 'main',
-          boardIndex: board.index,
-        });
+        if (eligibleResults.length === 0) continue;
+
+        // Sort by hand value (highest first)
+        eligibleResults.sort((a, b) => compareHands(b.result, a.result));
+
+        // Find winner(s) among eligible players
+        const bestValue = eligibleResults[0].result.value;
+        const boardWinners = eligibleResults.filter(r => r.result.value === bestValue);
+
+        // Calculate pot share for this board (include remainder in first board)
+        const boardPotShare = potPerBoard + (boardIndex === 0 ? potRemainder : 0);
+
+        // Split board's pot share among winners
+        const splitAmount = Math.floor(boardPotShare / boardWinners.length);
+        let winnerRemainder = boardPotShare % boardWinners.length;
+
+        for (const { player, result } of boardWinners) {
+          const amount = splitAmount + (winnerRemainder > 0 ? 1 : 0);
+          winnerRemainder--;
+
+          if (amount > 0) {
+            player.chips += amount;
+
+            // Track winner on this board (only add once per player per board)
+            if (!board.winners.includes(player.oderId)) {
+              board.winners.push(player.oderId);
+            }
+
+            winners.push({
+              playerId: player.oderId,
+              amount,
+              hand: result,
+              potType: pot === pots[0] ? 'main' : 'side',
+              boardIndex: board.index,
+            });
+          }
+        }
       }
     }
 
@@ -686,7 +844,8 @@ export class PokerGameState {
    */
   skipRunIt(): void {
     this.runItPrompt = null;
-    this.runOutToShowdown();
+    this.runItPending = false;
+    this.runOutToShowdown(true);  // Skip run-it check
   }
 
   /**
@@ -747,6 +906,7 @@ export class PokerGameState {
         player.bet += callAmount;
         player.totalBetThisRound += callAmount;
         this.pot += callAmount;
+        this.addContribution(player.oderId, callAmount);
         if (player.chips === 0) player.isAllIn = true;
         return { valid: true };
 
@@ -764,6 +924,7 @@ export class PokerGameState {
         player.bet += betAmount;
         player.totalBetThisRound += betAmount;
         this.pot += betAmount;
+        this.addContribution(player.oderId, betAmount);
 
         if (player.totalBetThisRound > this.currentBet) {
           this.minRaise = player.totalBetThisRound - this.currentBet;
@@ -786,6 +947,7 @@ export class PokerGameState {
         player.bet += allInAmount;
         player.totalBetThisRound += allInAmount;
         this.pot += allInAmount;
+        this.addContribution(player.oderId, allInAmount);
         player.isAllIn = true;
 
         if (player.totalBetThisRound > this.currentBet) {
@@ -867,10 +1029,20 @@ export class PokerGameState {
 
     // Check if we need to run to showdown (all-in)
     if (this.getActivePlayers().length <= 1) {
-      this.runOutToShowdown();
+      const shouldPromptRunIt = this.runOutToShowdown();
+      if (shouldPromptRunIt) {
+        this.runItPending = true;
+      }
     } else {
       this.setFirstToAct();
     }
+  }
+
+  /**
+   * Check if run-it prompt should be shown
+   */
+  shouldPromptRunIt(): boolean {
+    return this.runItPending;
   }
 
   /**
@@ -891,8 +1063,15 @@ export class PokerGameState {
 
   /**
    * Run out remaining cards when all players are all-in
+   * @param skipRunItCheck - If true, skip run-it eligibility check (used after run-it prompt)
+   * @returns true if run-it should be offered (caller should start prompt), false if runout completed
    */
-  private runOutToShowdown(): void {
+  runOutToShowdown(skipRunItCheck: boolean = false): boolean {
+    // Check if run-it should be offered
+    if (!skipRunItCheck && this.canRunItMultiple()) {
+      return true; // Server should start run-it prompt
+    }
+
     // Mark this as a runout and remember where we started
     this.isRunout = true;
     this.runoutStartPhase = this.phase;
@@ -911,6 +1090,7 @@ export class PokerGameState {
       }
     }
     this.resolveHand();
+    return false;
   }
 
   /**
@@ -945,7 +1125,7 @@ export class PokerGameState {
       // Dual-board bomb pot - split pot 50/50 between boards
       winners.push(...this.resolveDualBoardHand(playersInHand));
     } else {
-      // Showdown - evaluate hands
+      // Showdown - evaluate hands for all players
       const handResults: { player: RoomPlayer; result: HandResult }[] = [];
 
       for (const player of playersInHand) {
@@ -954,27 +1134,74 @@ export class PokerGameState {
         handResults.push({ player, result });
       }
 
-      // Sort by hand value (highest first)
-      handResults.sort((a, b) => compareHands(b.result, a.result));
+      // Calculate side pots
+      const pots = this.calculateSidePots();
 
-      // Find winner(s) - handle ties
-      const bestValue = handResults[0].result.value;
-      const winningPlayers = handResults.filter(h => h.result.value === bestValue);
+      // If no side pots (shouldn't happen but fallback), award entire pot to best hand
+      if (pots.length === 0) {
+        handResults.sort((a, b) => compareHands(b.result, a.result));
+        const bestValue = handResults[0].result.value;
+        const winningPlayers = handResults.filter(h => h.result.value === bestValue);
 
-      const splitAmount = Math.floor(this.pot / winningPlayers.length);
-      let remainder = this.pot % winningPlayers.length;
+        const splitAmount = Math.floor(this.pot / winningPlayers.length);
+        let remainder = this.pot % winningPlayers.length;
 
-      for (const { player, result } of winningPlayers) {
-        const amount = splitAmount + (remainder > 0 ? 1 : 0);
-        remainder--;
-        player.chips += amount;
-        winners.push({
-          playerId: player.oderId,
-          amount,
-          hand: result,
-          potType: 'main',
-        });
+        for (const { player, result } of winningPlayers) {
+          const amount = splitAmount + (remainder > 0 ? 1 : 0);
+          remainder--;
+          player.chips += amount;
+          winners.push({
+            playerId: player.oderId,
+            amount,
+            hand: result,
+            potType: 'main',
+          });
+        }
+      } else {
+        // Resolve each pot separately
+        let isMainPot = true;
+        for (const pot of pots) {
+          // Get hand results for only eligible players
+          const eligibleResults = handResults.filter(
+            hr => pot.eligiblePlayerIds.includes(hr.player.oderId)
+          );
+
+          if (eligibleResults.length === 0) continue;
+
+          // Sort by hand value (highest first)
+          eligibleResults.sort((a, b) => compareHands(b.result, a.result));
+
+          // Find winner(s) among eligible players
+          const bestValue = eligibleResults[0].result.value;
+          const potWinners = eligibleResults.filter(h => h.result.value === bestValue);
+
+          // Split this pot among winners
+          const splitAmount = Math.floor(pot.amount / potWinners.length);
+          let remainder = pot.amount % potWinners.length;
+
+          for (const { player, result } of potWinners) {
+            const amount = splitAmount + (remainder > 0 ? 1 : 0);
+            remainder--;
+            player.chips += amount;
+            winners.push({
+              playerId: player.oderId,
+              amount,
+              hand: result,
+              potType: isMainPot ? 'main' : 'side',
+            });
+          }
+
+          isMainPot = false;
+        }
       }
+
+      // Store calculated side pots for display
+      this.sidePots = pots;
+
+      // Determine the overall winner for 7-2 bonus (person who won the most)
+      const winningPlayers = handResults
+        .sort((a, b) => compareHands(b.result, a.result))
+        .filter((h, _, arr) => h.result.value === arr[0].result.value);
 
       // Check for 7-2 bonus (only on showdown, single winner, with 7-2 enabled)
       if (this.customRules.sevenDeuce && winningPlayers.length === 1) {

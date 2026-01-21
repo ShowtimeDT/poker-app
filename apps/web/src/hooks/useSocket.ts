@@ -88,6 +88,23 @@ export function useSocket() {
       setSevenDeuceBonus(bonus);
     });
 
+    // Run-it events
+    socket.on('game:run-it-prompt', (prompt: any) => {
+      console.log('[Socket] Run-it prompt received:', prompt);
+      // The prompt is included in the game state, but we also get it directly here
+      // The game state update from game:state will handle this
+    });
+
+    socket.on('game:run-it-decision', (data: any) => {
+      console.log('[Socket] Run-it decision:', data);
+      // Player made a choice - the updated prompt will come via game:run-it-prompt
+    });
+
+    socket.on('game:run-it-result', (data: any) => {
+      console.log('[Socket] Run-it result:', data);
+      // The result boards will be in the game state update
+    });
+
     // Room events
     socket.on('room:joined', (data: { room: any; userId: string; username: string }) => {
       setRoom(data.room);
@@ -145,6 +162,9 @@ export function useSocket() {
       socket.off('game:auto-fold');
       socket.off('game:hand-shown');
       socket.off('game:seven-deuce-bonus');
+      socket.off('game:run-it-prompt');
+      socket.off('game:run-it-decision');
+      socket.off('game:run-it-result');
       socket.off('room:joined');
       socket.off('room:player-joined');
       socket.off('room:player-left');
@@ -254,9 +274,14 @@ export function useGameActions() {
     socket.emit('game:straddle', accepted);
   }, [token]);
 
-  const sendRunItChoice = useCallback((choice: 1 | 2 | 3) => {
+  const sendRunItSelect = useCallback((choice: 1 | 2 | 3) => {
     const socket = getSocket(token || undefined);
-    socket.emit('game:run-it', choice);
+    socket.emit('game:run-it-select', choice);
+  }, [token]);
+
+  const sendRunItConfirm = useCallback(() => {
+    const socket = getSocket(token || undefined);
+    socket.emit('game:run-it-confirm');
   }, [token]);
 
   return {
@@ -276,6 +301,7 @@ export function useGameActions() {
     setStraddlePreference,
     updateRoomSettings,
     sendStraddle,
-    sendRunItChoice,
+    sendRunItSelect,
+    sendRunItConfirm,
   };
 }

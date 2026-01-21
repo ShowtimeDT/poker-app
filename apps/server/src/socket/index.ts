@@ -202,6 +202,18 @@ interface StraddleTimer {
 
 const straddleTimers: Map<string, StraddleTimer> = new Map(); // roomId -> StraddleTimer
 
+// =============================================================================
+// RUN-IT TIMERS
+// =============================================================================
+
+interface RunItTimer {
+  timerId: NodeJS.Timeout;
+  intervalId: NodeJS.Timeout;
+  timeRemaining: number;
+}
+
+const runItTimers: Map<string, RunItTimer> = new Map(); // roomId -> RunItTimer
+
 function clearStraddleTimer(roomId: string) {
   const timer = straddleTimers.get(roomId);
   if (timer) {
@@ -259,6 +271,181 @@ function startStraddleTimer(
     intervalId,
     playerId,
   });
+}
+
+// =============================================================================
+// RUN-IT TIMER FUNCTIONS
+// =============================================================================
+
+function clearRunItTimer(roomId: string) {
+  const timer = runItTimers.get(roomId);
+  if (timer) {
+    clearTimeout(timer.timerId);
+    clearInterval(timer.intervalId);
+    runItTimers.delete(roomId);
+  }
+}
+
+function startRunItTimer(
+  io: TypedIO,
+  roomManager: RoomManager,
+  roomId: string,
+  timeoutSeconds: number,
+  fastify: FastifyInstance
+) {
+  // Clear any existing timer
+  clearRunItTimer(roomId);
+
+  let timeRemaining = timeoutSeconds;
+
+  // Send timer updates every second
+  const intervalId = setInterval(() => {
+    timeRemaining--;
+
+    // Broadcast timer update to all players in room
+    // Use a synthetic player ID for the run-it timer
+    io.to(roomId).emit('game:timer', { timeRemaining, playerId: 'run-it' });
+
+    // Check if all confirmed and same choice - end early
+    if (roomManager.allConfirmedChoicesSame(roomId)) {
+      clearRunItTimer(roomId);
+      finalizeRunIt(io, roomManager, roomId, fastify);
+    }
+  }, 1000);
+
+  // Auto-finalize timer
+  const timerId = setTimeout(() => {
+    clearInterval(intervalId);
+    runItTimers.delete(roomId);
+    finalizeRunIt(io, roomManager, roomId, fastify);
+  }, timeoutSeconds * 1000);
+
+  runItTimers.set(roomId, {
+    timerId,
+    intervalId,
+    timeRemaining,
+  });
+}
+
+function finalizeRunIt(
+  io: TypedIO,
+  roomManager: RoomManager,
+  roomId: string,
+  fastify: FastifyInstance
+) {
+  const activeRoom = roomManager.getRoom(roomId);
+  if (!activeRoom) return;
+
+  // Clear the timer if it's still running
+  clearRunItTimer(roomId);
+
+  // Get the final choice
+  const finalChoice = roomManager.getFinalRunItChoice(roomId);
+
+  fastify.log.info(`Run-it finalized in room ${activeRoom.room.code}: ${finalChoice} time(s)`);
+
+  if (finalChoice === 1) {
+    // Run once = normal runout
+    roomManager.skipRunIt(roomId);
+
+    // Broadcast state update
+    broadcastGameState(io, roomManager, roomId);
+
+    // Get winners after runout
+    const state = roomManager.getGameState(roomId);
+    if (state?.phase === 'complete') {
+      const winners = activeRoom.gameState.getLastWinners();
+      const winnerDelay = calculateRunoutDelay(state.runoutStartPhase);
+
+      setTimeout(() => {
+        io.to(roomId).emit('game:winner', winners);
+        // Emit 7-2 bonus if applicable
+        if (state.sevenDeuceBonus) {
+          io.to(roomId).emit('game:seven-deuce-bonus', state.sevenDeuceBonus);
+        }
+      }, winnerDelay);
+
+      // Auto-start next hand
+      scheduleNextHand(io, roomManager, roomId, winnerDelay + 5000, fastify);
+    }
+  } else {
+    // Run multiple times
+    const boards = roomManager.executeRunIt(roomId, finalChoice);
+
+    if (boards) {
+      // Emit run-it result
+      io.to(roomId).emit('game:run-it-result', { boards, finalChoice });
+
+      // Broadcast updated state
+      broadcastGameState(io, roomManager, roomId);
+
+      // Get winners
+      const winners = activeRoom.gameState.getLastWinners();
+
+      // Calculate delay for winner announcement (let boards animate)
+      const boardAnimationDelay = finalChoice * 2000; // 2s per board
+
+      setTimeout(() => {
+        io.to(roomId).emit('game:winner', winners);
+        // Emit 7-2 bonus if applicable
+        const state = roomManager.getGameState(roomId);
+        if (state?.sevenDeuceBonus) {
+          io.to(roomId).emit('game:seven-deuce-bonus', state.sevenDeuceBonus);
+        }
+      }, boardAnimationDelay);
+
+      // Auto-start next hand
+      scheduleNextHand(io, roomManager, roomId, boardAnimationDelay + 5000, fastify);
+    }
+  }
+}
+
+function scheduleNextHand(
+  io: TypedIO,
+  roomManager: RoomManager,
+  roomId: string,
+  delay: number,
+  fastify: FastifyInstance
+) {
+  setTimeout(() => {
+    const room = roomManager.getRoom(roomId);
+    if (!room) return;
+
+    const activePlayers = Array.from(room.players.values()).filter(p => p.status === 'active' && p.chips > 0);
+    if (activePlayers.length < 2) {
+      io.to(roomId).emit('game:winner', []);
+      broadcastGameState(io, roomManager, roomId);
+      fastify.log.info(`Waiting for more players in room ${room.room.code}`);
+      return;
+    }
+
+    const result = startNextHand(roomManager, roomId, fastify);
+    if (result?.state) {
+      const { state } = result;
+      broadcastGameState(io, roomManager, roomId);
+
+      // Check for straddle phase
+      if (!result.isBombPot && room.room.customRules.straddleEnabled) {
+        handleStraddlePhase(io, roomManager, roomId, fastify);
+      } else {
+        // Start turn timer
+        if (room.room.customRules.turnTimeEnabled) {
+          const currentPlayer = state.players.find(p => p.seat === state.currentPlayerSeat);
+          if (currentPlayer) {
+            startTurnTimer(
+              io,
+              roomManager,
+              roomId,
+              currentPlayer.oderId,
+              room.room.customRules.turnTimeSeconds,
+              room.room.customRules.warningTimeSeconds,
+              fastify
+            );
+          }
+        }
+      }
+    }
+  }, delay);
 }
 
 // =============================================================================
@@ -1160,6 +1347,22 @@ function handleGameEvents(
         }
       });
 
+      // Check if run-it should be prompted
+      if (roomManager.shouldPromptRunIt(roomId)) {
+        const prompt = roomManager.startRunItPrompt(roomId);
+        if (prompt) {
+          fastify.log.info(`Starting run-it prompt in room ${activeRoom?.room.code}`);
+          io.to(roomId).emit('game:run-it-prompt', prompt);
+
+          // Start the run-it timer (5 seconds)
+          startRunItTimer(io, roomManager, roomId, 5, fastify);
+
+          // Re-broadcast state with the prompt
+          broadcastGameState(io, roomManager, roomId);
+          return; // Don't check winners yet - wait for run-it to complete
+        }
+      }
+
       // Start timer for next player if game is still active
       const updatedState = roomManager.getGameState(roomId);
       if (updatedState && updatedState.phase !== 'waiting' && updatedState.phase !== 'showdown' && updatedState.phase !== 'complete') {
@@ -1507,6 +1710,75 @@ function handleGameEvents(
     });
 
     fastify.log.info(`${socket.data.odername} showed their hand in room ${activeRoom.room.code}`);
+  });
+
+  // Run-it select (player selects an option but hasn't confirmed yet)
+  socket.on('game:run-it-select', (choice: 1 | 2 | 3) => {
+    const roomId = socket.data.roomId;
+    if (!roomId) return;
+
+    const activeRoom = roomManager.getRoom(roomId);
+    if (!activeRoom) return;
+
+    // Process the choice
+    const success = roomManager.processRunItChoice(roomId, socket.data.oderId, choice);
+    if (!success) {
+      socket.emit('error', { code: 'INVALID_CHOICE', message: 'Cannot make this choice' });
+      return;
+    }
+
+    // Broadcast the decision to all players
+    const prompt = roomManager.getRunItPrompt(roomId);
+    if (prompt) {
+      io.to(roomId).emit('game:run-it-decision', {
+        playerId: socket.data.oderId,
+        choice,
+        confirmed: false,
+      });
+      // Also broadcast updated prompt
+      io.to(roomId).emit('game:run-it-prompt', prompt);
+    }
+
+    fastify.log.info(`${socket.data.odername} selected run-it ${choice} time(s)`);
+  });
+
+  // Run-it confirm (player locks in their choice)
+  socket.on('game:run-it-confirm', () => {
+    const roomId = socket.data.roomId;
+    if (!roomId) return;
+
+    const activeRoom = roomManager.getRoom(roomId);
+    if (!activeRoom) return;
+
+    // Confirm the choice
+    const success = roomManager.confirmRunItChoice(roomId, socket.data.oderId);
+    if (!success) {
+      socket.emit('error', { code: 'CANNOT_CONFIRM', message: 'Cannot confirm - select a choice first' });
+      return;
+    }
+
+    // Get the confirmed choice
+    const prompt = roomManager.getRunItPrompt(roomId);
+    const playerChoice = prompt?.choices.find(c => c.playerId === socket.data.oderId);
+
+    // Broadcast the confirmation to all players
+    if (prompt && playerChoice) {
+      io.to(roomId).emit('game:run-it-decision', {
+        playerId: socket.data.oderId,
+        choice: playerChoice.choice!,
+        confirmed: true,
+      });
+      // Also broadcast updated prompt
+      io.to(roomId).emit('game:run-it-prompt', prompt);
+    }
+
+    fastify.log.info(`${socket.data.odername} confirmed run-it choice`);
+
+    // Check if all confirmed and same choice - end early
+    if (roomManager.allConfirmedChoicesSame(roomId)) {
+      clearRunItTimer(roomId);
+      finalizeRunIt(io, roomManager, roomId, fastify);
+    }
   });
 }
 

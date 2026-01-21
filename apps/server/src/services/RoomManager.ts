@@ -401,6 +401,111 @@ export class RoomManager {
   }
 
   // ---------------------------------------------------------------------------
+  // Run It Twice/Thrice
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Check if run-it prompt should be shown
+   */
+  shouldPromptRunIt(roomId: string): boolean {
+    const activeRoom = this.rooms.get(roomId);
+    if (!activeRoom) return false;
+
+    return activeRoom.gameState.shouldPromptRunIt();
+  }
+
+  /**
+   * Start the run-it prompt phase
+   */
+  startRunItPrompt(roomId: string): import('@poker/shared').RunItPrompt | null {
+    const activeRoom = this.rooms.get(roomId);
+    if (!activeRoom) return null;
+
+    return activeRoom.gameState.startRunItPrompt();
+  }
+
+  /**
+   * Process a run-it choice (player selected an option)
+   */
+  processRunItChoice(roomId: string, playerId: string, choice: import('@poker/shared').RunItChoice): boolean {
+    const activeRoom = this.rooms.get(roomId);
+    if (!activeRoom) return false;
+
+    return activeRoom.gameState.processRunItChoice(playerId, choice);
+  }
+
+  /**
+   * Confirm a player's run-it choice (lock it in)
+   */
+  confirmRunItChoice(roomId: string, playerId: string): boolean {
+    const activeRoom = this.rooms.get(roomId);
+    if (!activeRoom) return false;
+
+    return activeRoom.gameState.confirmRunItChoice(playerId);
+  }
+
+  /**
+   * Check if all run-it choices are confirmed
+   */
+  allRunItChoicesConfirmed(roomId: string): boolean {
+    const activeRoom = this.rooms.get(roomId);
+    if (!activeRoom) return false;
+
+    return activeRoom.gameState.allRunItChoicesConfirmed();
+  }
+
+  /**
+   * Check if all confirmed choices are the same (for early end)
+   */
+  allConfirmedChoicesSame(roomId: string): boolean {
+    const activeRoom = this.rooms.get(roomId);
+    if (!activeRoom) return false;
+
+    return activeRoom.gameState.allConfirmedChoicesSame();
+  }
+
+  /**
+   * Get the final run-it choice based on all player choices
+   */
+  getFinalRunItChoice(roomId: string): import('@poker/shared').RunItChoice {
+    const activeRoom = this.rooms.get(roomId);
+    if (!activeRoom) return 1;
+
+    return activeRoom.gameState.getFinalRunItChoice();
+  }
+
+  /**
+   * Execute run-it with the given number of times
+   */
+  executeRunIt(roomId: string, times: import('@poker/shared').RunItChoice): import('@poker/shared').Board[] | null {
+    const activeRoom = this.rooms.get(roomId);
+    if (!activeRoom) return null;
+
+    return activeRoom.gameState.executeRunIt(times);
+  }
+
+  /**
+   * Skip run-it and do normal runout
+   */
+  skipRunIt(roomId: string): void {
+    const activeRoom = this.rooms.get(roomId);
+    if (!activeRoom) return;
+
+    activeRoom.gameState.skipRunIt();
+  }
+
+  /**
+   * Get the current run-it prompt
+   */
+  getRunItPrompt(roomId: string): import('@poker/shared').RunItPrompt | null {
+    const activeRoom = this.rooms.get(roomId);
+    if (!activeRoom) return null;
+
+    const state = activeRoom.gameState.getState();
+    return state.runItPrompt ?? null;
+  }
+
+  // ---------------------------------------------------------------------------
   // Room Configuration
   // ---------------------------------------------------------------------------
 

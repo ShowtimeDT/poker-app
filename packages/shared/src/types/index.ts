@@ -276,7 +276,7 @@ export interface Board {
 export interface RunItPrompt {
   eligiblePlayerIds: string[];
   timeoutSeconds: number;
-  choices: { playerId: string; choice: RunItChoice | null }[];
+  choices: { playerId: string; choice: RunItChoice | null; confirmed: boolean }[];
 }
 
 // Socket Events
@@ -290,7 +290,7 @@ export interface ServerToClientEvents {
   'game:straddle-placed': (straddle: Straddle) => void;  // Player placed a straddle
   'game:straddle-declined': (data: { seat: number }) => void;  // Player declined straddle
   'game:run-it-prompt': (prompt: RunItPrompt) => void;  // Run it decision prompt
-  'game:run-it-decision': (data: { playerId: string; choice: RunItChoice }) => void;  // Player made choice
+  'game:run-it-decision': (data: { playerId: string; choice: RunItChoice; confirmed: boolean }) => void;  // Player made choice
   'game:run-it-result': (data: { boards: Board[]; finalChoice: RunItChoice }) => void;  // Final result
   'game:variant-changed': (variant: GameVariant) => void;
   'game:timer': (data: { timeRemaining: number; playerId: string }) => void;
@@ -315,7 +315,8 @@ export interface ClientToServerEvents {
   'game:action': (action: PlayerAction) => void;
   'game:start': () => void;                               // Host starts the game
   'game:choose-variant': (variant: GameVariant) => void;  // Dealer's choice
-  'game:run-it': (times: 1 | 2 | 3) => void;              // Run it out choice
+  'game:run-it-select': (choice: 1 | 2 | 3) => void;      // Select run-it option (before confirming)
+  'game:run-it-confirm': () => void;                       // Confirm run-it selection
   'game:start-bomb-pot': (amount?: number) => void;
   'game:show-hand': () => void;                           // Show winning hand voluntarily
   'game:straddle': (straddle: boolean) => void;           // Accept or decline straddle
