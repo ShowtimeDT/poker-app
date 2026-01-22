@@ -1145,18 +1145,23 @@ export class PokerGameState {
     this.isRunout = true;
     this.runoutStartPhase = this.phase;
 
+    // Deal remaining community cards up to showdown
+    // IMPORTANT: Deal for CURRENT phase first, then advance
+    // This ensures we don't skip dealing when entering on flop/turn/river
     while (this.phase !== 'showdown' && this.phase !== 'complete') {
+      // Deal community cards for current phase (returns nothing for preflop)
+      this.dealCommunityCards();
+      if (this.isDualBoard) {
+        this.dealCommunityCards2();
+      }
+
+      // Advance to next phase
       const nextPhase = this.variant.getNextPhase(this.phase);
-      if (!nextPhase || nextPhase === 'complete') {
+      if (!nextPhase || nextPhase === 'complete' || nextPhase === 'showdown') {
         this.phase = 'showdown';
         break;
       }
       this.phase = nextPhase;
-      this.dealCommunityCards();
-      // Deal to second board if dual board
-      if (this.isDualBoard) {
-        this.dealCommunityCards2();
-      }
     }
     this.resolveHand();
     return false;
