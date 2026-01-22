@@ -27,6 +27,7 @@ interface PlayerSeatProps {
   // Deal animation props
   dealAnimationDelay?: number;  // Delay before card animation starts
   dealFromPosition?: { x: number; y: number };  // Position to animate cards from (dealer position)
+  handNumber?: number;  // Current hand number (used to trigger card remount for animations)
 }
 
 // =============================================================================
@@ -50,6 +51,7 @@ export function PlayerSeat({
   className,
   dealAnimationDelay,
   dealFromPosition,
+  handNumber,
 }: PlayerSeatProps) {
   const { odername, avatarUrl, chips, holeCards, isFolded, isAllIn, status } = player;
 
@@ -163,6 +165,7 @@ export function PlayerSeat({
           isCurrentPlayer={isCurrentPlayer}
           dealAnimationDelay={dealAnimationDelay}
           dealFromPosition={dealFromPosition}
+          handNumber={handNumber}
         />
       ) : showCardIndicator ? (
         // Card indicator for players still in hand
@@ -209,6 +212,7 @@ interface HoleCardsProps {
   isCurrentPlayer?: boolean;
   dealAnimationDelay?: number;
   dealFromPosition?: { x: number; y: number };
+  handNumber?: number;
 }
 
 function HoleCards({
@@ -218,6 +222,7 @@ function HoleCards({
   isCurrentPlayer = false,
   dealAnimationDelay,
   dealFromPosition,
+  handNumber,
 }: HoleCardsProps) {
   if (isFolded) return null;
 
@@ -234,7 +239,9 @@ function HoleCards({
     )}>
       {cards.map((card, i) => (
         <PlayingCard
-          key={card.code}
+          // Include handNumber in key to force remount when new hand starts
+          // This ensures the deal animation plays fresh each hand
+          key={`${card.code}-hand${handNumber ?? 0}`}
           card={card}
           faceDown={!showCards}
           size={cardSize}

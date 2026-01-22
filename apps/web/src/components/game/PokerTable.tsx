@@ -340,6 +340,7 @@ export function PokerTable({
                   // Deal animation props
                   dealAnimationDelay={dealAnimationData.get(actualSeat)?.delay}
                   dealFromPosition={dealAnimationData.get(actualSeat)?.fromPosition}
+                  handNumber={gameState.handNumber}
                 />
                 {/* Bet Display */}
                 {player.bet > 0 && (
