@@ -7,6 +7,7 @@ import type {
   CustomRules,
   PlayerAction,
   WinnerInfo,
+  RebuyPrompt,
 } from '@poker/shared';
 import { DEFAULT_CUSTOM_RULES } from '@poker/shared';
 import { PokerGameState } from '@poker/engine';
@@ -22,6 +23,8 @@ interface ActiveRoom {
   players: Map<string, RoomPlayer>;
   spectators: Set<string>;
   turnTimer?: NodeJS.Timeout;
+  rebuyPrompt?: RebuyPrompt;
+  rebuyPromptTimer?: NodeJS.Timeout;
 }
 
 interface CreateRoomOptions {
@@ -505,6 +508,109 @@ export class RoomManager {
 
     const state = activeRoom.gameState.getState();
     return state.runItPrompt ?? null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Rebuy Prompt Management (waitForAllRebuys feature)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Start a rebuy prompt for busted players
+   * @param roomId - The room ID
+   * @param timeoutSeconds - Timeout before auto-declining (default 60)
+   * @returns The rebuy prompt or null if not applicable
+   */
+  startRebuyPrompt(roomId: string, timeoutSeconds: number = 60): RebuyPrompt | null {
+    const activeRoom = this.rooms.get(roomId);
+    if (!activeRoom) return null;
+
+    // Find players with 0 chips
+    const bustedPlayers = Array.from(activeRoom.players.values())
+      .filter(p => p.chips === 0 && p.status !== 'disconnected');
+
+    if (bustedPlayers.length === 0) return null;
+
+    const prompt: RebuyPrompt = {
+      playerIds: bustedPlayers.map(p => p.oderId),
+      decisions: bustedPlayers.map(p => ({
+        playerId: p.oderId,
+        decision: 'pending' as const,
+      })),
+      timeoutAt: Date.now() + timeoutSeconds * 1000,
+    };
+
+    activeRoom.rebuyPrompt = prompt;
+    return prompt;
+  }
+
+  /**
+   * Record a player's rebuy decision
+   * @param roomId - The room ID
+   * @param playerId - The player making the decision
+   * @param decision - 'rebuy' or 'decline'
+   * @param rebuyAmount - The amount if rebuying
+   * @returns Updated prompt or null
+   */
+  recordRebuyDecision(
+    roomId: string,
+    playerId: string,
+    decision: 'rebuy' | 'decline',
+    rebuyAmount?: number
+  ): RebuyPrompt | null {
+    const activeRoom = this.rooms.get(roomId);
+    if (!activeRoom || !activeRoom.rebuyPrompt) return null;
+
+    const decisionEntry = activeRoom.rebuyPrompt.decisions.find(d => d.playerId === playerId);
+    if (!decisionEntry) return null;
+
+    decisionEntry.decision = decision;
+    if (decision === 'rebuy' && rebuyAmount !== undefined) {
+      decisionEntry.rebuyAmount = rebuyAmount;
+    }
+
+    return activeRoom.rebuyPrompt;
+  }
+
+  /**
+   * Get the current rebuy prompt
+   */
+  getRebuyPrompt(roomId: string): RebuyPrompt | null {
+    const activeRoom = this.rooms.get(roomId);
+    if (!activeRoom) return null;
+    return activeRoom.rebuyPrompt ?? null;
+  }
+
+  /**
+   * Check if all rebuy decisions have been made
+   */
+  allRebuyDecisionsMade(roomId: string): boolean {
+    const activeRoom = this.rooms.get(roomId);
+    if (!activeRoom || !activeRoom.rebuyPrompt) return true;
+
+    return activeRoom.rebuyPrompt.decisions.every(d => d.decision !== 'pending');
+  }
+
+  /**
+   * Clear the rebuy prompt and any associated timer
+   */
+  clearRebuyPrompt(roomId: string): void {
+    const activeRoom = this.rooms.get(roomId);
+    if (!activeRoom) return;
+
+    if (activeRoom.rebuyPromptTimer) {
+      clearTimeout(activeRoom.rebuyPromptTimer);
+      activeRoom.rebuyPromptTimer = undefined;
+    }
+    activeRoom.rebuyPrompt = undefined;
+  }
+
+  /**
+   * Set the rebuy prompt timer
+   */
+  setRebuyPromptTimer(roomId: string, timer: NodeJS.Timeout): void {
+    const activeRoom = this.rooms.get(roomId);
+    if (!activeRoom) return;
+    activeRoom.rebuyPromptTimer = timer;
   }
 
   // ---------------------------------------------------------------------------

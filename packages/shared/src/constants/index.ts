@@ -149,6 +149,7 @@ export const DEFAULT_CUSTOM_RULES: import('../types').CustomRules = {
   sevenDeuce: false,
   sevenDeuceBonus: undefined,
   insuranceEnabled: false,
+  waitForAllRebuys: false,
 };
 
 // Default Blackjack Rules

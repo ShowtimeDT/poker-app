@@ -12,7 +12,8 @@ interface PlayingCardProps {
   animationDelay?: number;
   onClick?: () => void;
   isWinner?: boolean;
-  dealFrom?: 'dealer' | 'top' | 'left' | 'right';
+  dealFrom?: 'dealer' | 'top' | 'left' | 'right' | 'custom';
+  dealFromPosition?: { x: number; y: number };  // Custom position for deal animation (in pixels)
   dramaticReveal?: boolean;
   variant?: 'normal' | 'ghost';  // Ghost cards shown with gold styling
 }
@@ -56,7 +57,21 @@ const dealVariants = {
     initial: { x: 150, rotate: 15, scale: 0.5, opacity: 0 },
     animate: { x: 0, rotate: 0, scale: 1, opacity: 1 },
   },
+  // Custom variant uses dealFromPosition prop
+  custom: {
+    initial: { x: 0, y: 0, rotate: -15, scale: 0.3, opacity: 0 },
+    animate: { x: 0, y: 0, rotate: 0, scale: 1, opacity: 1 },
+  },
 };
+
+// Helper to create custom deal variant from position
+function getCustomDealVariant(position?: { x: number; y: number }) {
+  if (!position) return dealVariants.dealer;
+  return {
+    initial: { x: position.x, y: position.y, rotate: -15, scale: 0.3, opacity: 0 },
+    animate: { x: 0, y: 0, rotate: 0, scale: 1, opacity: 1 },
+  };
+}
 
 export function PlayingCard({
   card,
@@ -67,11 +82,15 @@ export function PlayingCard({
   onClick,
   isWinner = false,
   dealFrom = 'dealer',
+  dealFromPosition,
   dramaticReveal = false,
   variant = 'normal',
 }: PlayingCardProps) {
   const showBack = faceDown || !card;
-  const dealVariant = dealVariants[dealFrom];
+  // Use custom position if dealFrom is 'custom' and position is provided
+  const dealVariant = dealFrom === 'custom' && dealFromPosition
+    ? getCustomDealVariant(dealFromPosition)
+    : dealVariants[dealFrom];
   const isGhost = variant === 'ghost';
 
   return (

@@ -54,9 +54,10 @@ export default function RoomPage() {
     clearSevenDeuceBonus,
     runItBoards,
     runItFinalChoice,
+    rebuyPrompt,
   } = useGameStore();
 
-  const { joinRoom, leaveRoom, sitDown, sitOut, sendAction, sendChat, startGame, showHand, rebuy, setBombPotPreference, setStraddlePreference, updateRoomSettings, sendStraddle, sendRunItSelect, sendRunItConfirm } = useGameActions();
+  const { joinRoom, leaveRoom, sitDown, sitOut, sendAction, sendChat, startGame, showHand, rebuy, declineRebuy, setBombPotPreference, setStraddlePreference, updateRoomSettings, sendStraddle, sendRunItSelect, sendRunItConfirm } = useGameActions();
 
   const isMyTurn = useGameStore(selectIsMyTurn);
   const currentPlayer = useGameStore(selectCurrentPlayer);
@@ -466,25 +467,44 @@ export default function RoomPage() {
       )}
 
       {/* Rebuy Modal - show when player has 0 chips and animations are complete */}
+      {/* Also show if rebuy prompt is active (waitForAllRebuys feature) */}
       <RebuyModal
         isOpen={
           !rebuyDismissed &&
-          rebuyReady &&
           !!currentPlayer &&
-          currentPlayer.chips === 0
+          currentPlayer.chips === 0 &&
+          (rebuyReady || (rebuyPrompt !== null && rebuyPrompt.playerIds.includes(userId || '')))
         }
         minBuyIn={room?.stakes.minBuyIn || 1000}
         maxBuyIn={room?.stakes.maxBuyIn || 10000}
         onRebuy={(amount) => {
           rebuy(amount);
-          setRebuyDismissed(false); // Reset for future rebuys
-          setRebuyReady(false); // Reset for future rebuys
+          // Only reset these if NOT in rebuy prompt mode (old behavior)
+          if (!rebuyPrompt) {
+            setRebuyDismissed(false);
+            setRebuyReady(false);
+          }
         }}
         onClose={() => {
           setRebuyDismissed(true);
           leaveRoom();
           router.push('/lobby');
         }}
+        // waitForAllRebuys props
+        onDecline={rebuyPrompt ? declineRebuy : undefined}
+        hasConfirmedRebuy={
+          rebuyPrompt?.decisions.find(d => d.playerId === userId)?.decision === 'rebuy'
+        }
+        pendingPlayers={
+          rebuyPrompt && gameState
+            ? rebuyPrompt.decisions.map(d => ({
+                oderId: d.playerId,
+                name: gameState.players.find(p => p.oderId === d.playerId)?.odername || 'Unknown',
+                decided: d.decision !== 'pending',
+              })).filter(p => p.oderId !== userId) // Don't show current player in waiting list
+            : undefined
+        }
+        timeoutAt={rebuyPrompt?.timeoutAt}
       />
 
       {/* Host Settings Modal - only for host */}

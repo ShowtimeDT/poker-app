@@ -131,6 +131,9 @@ export interface CustomRules {
 
   // Insurance/side bets (for advanced play)
   insuranceEnabled: boolean;
+
+  // Rebuy behavior
+  waitForAllRebuys: boolean;  // Wait for all busted players to rebuy/decline
 }
 
 // Blackjack specific
@@ -279,6 +282,16 @@ export interface RunItPrompt {
   choices: { playerId: string; choice: RunItChoice | null; confirmed: boolean }[];
 }
 
+export interface RebuyPrompt {
+  playerIds: string[];  // Players who need to decide (chips === 0)
+  decisions: {
+    playerId: string;
+    decision: 'pending' | 'rebuy' | 'decline';
+    rebuyAmount?: number;
+  }[];
+  timeoutAt: number;  // Timestamp when auto-decline kicks in
+}
+
 // Socket Events
 export interface ServerToClientEvents {
   'game:state': (state: GameState) => void;
@@ -308,6 +321,7 @@ export interface ServerToClientEvents {
   'player:bomb-pot-preference-changed': (data: { playerId: string; enabled: boolean }) => void;
   'player:straddle-preference-changed': (data: { playerId: string; enabled: boolean }) => void;
   'room:settings-updated': (data: { room: Room }) => void;  // Host changed room settings
+  'room:rebuy-prompt': (prompt: RebuyPrompt | null) => void;  // Rebuy prompt for busted players
   'error': (error: { code: string; message: string }) => void;
 }
 
@@ -330,6 +344,7 @@ export interface ClientToServerEvents {
   'room:stand': () => void;
   'room:sit-out': (sittingOut: boolean) => void;          // Toggle sitting out
   'room:rebuy': (amount: number) => void;                 // Rebuy chips when at 0
+  'room:decline-rebuy': () => void;                       // Decline rebuy (sit out)
   'room:chat': (message: string) => void;
   'room:update-rules': (rules: Partial<CustomRules>) => void;
   'room:update-settings': (settings: { stakes?: Partial<Stakes>; maxPlayers?: number; customRules?: Partial<CustomRules> }) => void;

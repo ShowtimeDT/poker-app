@@ -34,6 +34,7 @@ export function HostSettingsModal({ isOpen, onClose, room, onSave }: HostSetting
   const [runOutOnFold, setRunOutOnFold] = useState(room.customRules.runOutOnFold);
   const [sevenDeuce, setSevenDeuce] = useState(room.customRules.sevenDeuce);
   const [sevenDeuceBonusStr, setSevenDeuceBonusStr] = useState(String(room.customRules.sevenDeuceBonus || room.stakes.bigBlind * 5));
+  const [waitForAllRebuys, setWaitForAllRebuys] = useState(room.customRules.waitForAllRebuys);
 
   // Parse string values to numbers (with defaults)
   const smallBlind = parseInt(smallBlindStr) || 0;
@@ -57,6 +58,7 @@ export function HostSettingsModal({ isOpen, onClose, room, onSave }: HostSetting
       setRunOutOnFold(room.customRules.runOutOnFold);
       setSevenDeuce(room.customRules.sevenDeuce);
       setSevenDeuceBonusStr(String(room.customRules.sevenDeuceBonus || room.stakes.bigBlind * 5));
+      setWaitForAllRebuys(room.customRules.waitForAllRebuys);
     }
   }, [isOpen, room]);
 
@@ -100,6 +102,7 @@ export function HostSettingsModal({ isOpen, onClose, room, onSave }: HostSetting
         runOutOnFold,
         sevenDeuce,
         sevenDeuceBonus: sevenDeuce ? sevenDeuceBonus : undefined,
+        waitForAllRebuys,
       },
     });
     onClose();
@@ -118,7 +121,8 @@ export function HostSettingsModal({ isOpen, onClose, room, onSave }: HostSetting
     runItThrice !== room.customRules.runItThrice ||
     runOutOnFold !== room.customRules.runOutOnFold ||
     sevenDeuce !== room.customRules.sevenDeuce ||
-    sevenDeuceBonus !== (room.customRules.sevenDeuceBonus || room.stakes.bigBlind * 5);
+    sevenDeuceBonus !== (room.customRules.sevenDeuceBonus || room.stakes.bigBlind * 5) ||
+    waitForAllRebuys !== room.customRules.waitForAllRebuys;
 
   return (
     <AnimatePresence>
@@ -297,6 +301,12 @@ export function HostSettingsModal({ isOpen, onClose, room, onSave }: HostSetting
                     description="Allow unlimited straddle bets"
                     checked={straddleEnabled}
                     onChange={setStraddleEnabled}
+                  />
+                  <ToggleRow
+                    label="Wait for All Rebuys"
+                    description="Wait for busted players to rebuy or sit out"
+                    checked={waitForAllRebuys}
+                    onChange={setWaitForAllRebuys}
                   />
                 </div>
               </div>

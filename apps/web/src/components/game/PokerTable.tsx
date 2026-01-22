@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import type { GameState, Card, WinnerInfo, Board } from '@poker/shared';
 import { cn, formatChips } from '@/lib/utils';
@@ -133,6 +134,110 @@ export function PokerTable({
   // Map players to their actual seats
   const seatMap = new Map(players.map(p => [p.seat, p]));
 
+  // ==========================================================================
+  // DEAL ANIMATION LOGIC
+  // ==========================================================================
+
+  // Track hand number and phase to detect new hands
+  const prevHandNumber = useRef<number | null>(null);
+  const prevPhase = useRef<string | null>(null);
+  const [dealingHandNumber, setDealingHandNumber] = useState<number | null>(null);
+
+  // Detect when a new hand starts
+  useEffect(() => {
+    const currentHandNumber = gameState.handNumber;
+    const wasWaiting = prevPhase.current === 'waiting' || prevPhase.current === 'complete' || prevPhase.current === null;
+    const isPreflop = phase === 'preflop';
+
+    // Trigger deal animation when:
+    // 1. Hand number changed AND phase is preflop
+    // 2. OR transitioning into preflop from waiting/complete (new hand starting)
+    const handNumberChanged = currentHandNumber !== undefined && currentHandNumber !== prevHandNumber.current;
+    const newHandStarting = wasWaiting && isPreflop;
+
+    if ((handNumberChanged || newHandStarting) && isPreflop) {
+      setDealingHandNumber(currentHandNumber ?? Date.now()); // Use timestamp as fallback
+      // Clear dealing state after animation completes (about 2 seconds for a 9-player table)
+      const timeout = setTimeout(() => {
+        setDealingHandNumber(null);
+      }, 3000);
+
+      // Update refs
+      if (currentHandNumber !== undefined) {
+        prevHandNumber.current = currentHandNumber;
+      }
+      prevPhase.current = phase;
+
+      return () => clearTimeout(timeout);
+    }
+
+    // Always update phase ref
+    prevPhase.current = phase;
+    if (currentHandNumber !== undefined) {
+      prevHandNumber.current = currentHandNumber;
+    }
+  }, [gameState.handNumber, phase]);
+
+  // Calculate deal order and animation data for each player
+  const dealAnimationData = useMemo(() => {
+    // Only calculate if we're dealing
+    if (dealingHandNumber === null) return new Map<number, { delay: number; fromPosition: { x: number; y: number } }>();
+
+    // Helper to get visual position (same logic as getVisualPosition but usable in memo)
+    const toVisualPosition = (actualSeat: number): number => {
+      return (actualSeat - currentUserSeat + maxSeats) % maxSeats;
+    };
+
+    // Get active players who have hole cards, sorted by deal order (clockwise from left of dealer)
+    const playersWithCards = players
+      .filter(p => p.holeCards && p.holeCards.length > 0 && !p.isFolded)
+      .sort((a, b) => {
+        // Sort by position relative to dealer (clockwise)
+        // Player immediately left of dealer deals first
+        const aDealOrder = (a.seat - dealerSeat + maxSeats) % maxSeats;
+        const bDealOrder = (b.seat - dealerSeat + maxSeats) % maxSeats;
+        // Seat 0 relative to dealer means they're dealer, should be dealt last
+        // Seat 1 relative to dealer (left of dealer) should be dealt first
+        const aOrder = aDealOrder === 0 ? maxSeats : aDealOrder;
+        const bOrder = bDealOrder === 0 ? maxSeats : bDealOrder;
+        return aOrder - bOrder;
+      });
+
+    const cardInterval = 0.12; // Time between each card dealt
+
+    // Get dealer's visual position (for calculating animation origin)
+    const dealerVisualPos = toVisualPosition(dealerSeat);
+    const dealerPos = seatPositions[dealerVisualPos];
+
+    // Calculate deal data for each player
+    const data = new Map<number, { delay: number; fromPosition: { x: number; y: number } }>();
+
+    playersWithCards.forEach((player, dealIndex) => {
+      // First card: dealt in order 0, 1, 2, ...
+      // Second card: dealt in order numPlayers, numPlayers+1, ...
+      // Use the first card's delay (second card delay is handled in HoleCards with +0.08s per card)
+      const firstCardDelay = dealIndex * cardInterval;
+
+      // Calculate the position offset from dealer to this player (in viewport-relative pixels)
+      // These are rough estimates that work well for the ellipse layout
+      const playerVisualPos = toVisualPosition(player.seat);
+      const playerPos = seatPositions[playerVisualPos];
+
+      // Calculate direction from player to dealer (we want cards to come FROM dealer)
+      // Convert percentage positions to approximate pixel offsets
+      // Since cards are positioned at the player, we need the offset to the dealer
+      const xOffset = (dealerPos.x - playerPos.x) * 8; // Scale factor for visual effect
+      const yOffset = (dealerPos.y - playerPos.y) * 5;
+
+      data.set(player.seat, {
+        delay: firstCardDelay,
+        fromPosition: { x: xOffset, y: yOffset },
+      });
+    });
+
+    return data;
+  }, [dealingHandNumber, players, dealerSeat, maxSeats, seatPositions, currentUserSeat]);
+
   return (
     <div className={cn('relative w-full h-full', className)}>
       {/* Table Surface */}
@@ -232,6 +337,9 @@ export function PokerTable({
                   turnTimeTotal={turnTimeTotal}
                   shownCards={shownHands?.get(player.oderId)}
                   hasCards={phase !== 'waiting' && !player.isFolded}
+                  // Deal animation props
+                  dealAnimationDelay={dealAnimationData.get(actualSeat)?.delay}
+                  dealFromPosition={dealAnimationData.get(actualSeat)?.fromPosition}
                 />
                 {/* Bet Display */}
                 {player.bet > 0 && (

@@ -24,6 +24,9 @@ interface PlayerSeatProps {
   lastAction?: { action: string; amount?: number } | null;  // Last action for floating label
   winStreak?: number;   // Consecutive wins for streak indicator
   className?: string;
+  // Deal animation props
+  dealAnimationDelay?: number;  // Delay before card animation starts
+  dealFromPosition?: { x: number; y: number };  // Position to animate cards from (dealer position)
 }
 
 // =============================================================================
@@ -45,6 +48,8 @@ export function PlayerSeat({
   lastAction,
   winStreak = 0,
   className,
+  dealAnimationDelay,
+  dealFromPosition,
 }: PlayerSeatProps) {
   const { odername, avatarUrl, chips, holeCards, isFolded, isAllIn, status } = player;
 
@@ -156,6 +161,8 @@ export function PlayerSeat({
           showCards={!!shownCards || showCards || isCurrentPlayer}
           isFolded={isFolded && !shownCards}
           isCurrentPlayer={isCurrentPlayer}
+          dealAnimationDelay={dealAnimationDelay}
+          dealFromPosition={dealFromPosition}
         />
       ) : showCardIndicator ? (
         // Card indicator for players still in hand
@@ -200,13 +207,25 @@ interface HoleCardsProps {
   showCards: boolean;
   isFolded?: boolean;
   isCurrentPlayer?: boolean;
+  dealAnimationDelay?: number;
+  dealFromPosition?: { x: number; y: number };
 }
 
-function HoleCards({ cards, showCards, isFolded, isCurrentPlayer = false }: HoleCardsProps) {
+function HoleCards({
+  cards,
+  showCards,
+  isFolded,
+  isCurrentPlayer = false,
+  dealAnimationDelay,
+  dealFromPosition,
+}: HoleCardsProps) {
   if (isFolded) return null;
 
   // Current player gets larger, more visible cards
   const cardSize = isCurrentPlayer ? 'sm' : 'xs';
+
+  // Use custom deal animation if position is provided
+  const useDealAnimation = dealFromPosition !== undefined && dealAnimationDelay !== undefined;
 
   return (
     <div className={cn(
@@ -219,7 +238,10 @@ function HoleCards({ cards, showCards, isFolded, isCurrentPlayer = false }: Hole
           card={card}
           faceDown={!showCards}
           size={cardSize}
-          animationDelay={i * 0.1}
+          // Use deal animation if provided, otherwise default timing
+          animationDelay={useDealAnimation ? dealAnimationDelay + (i * 0.08) : i * 0.1}
+          dealFrom={useDealAnimation ? 'custom' : 'dealer'}
+          dealFromPosition={dealFromPosition}
         />
       ))}
     </div>

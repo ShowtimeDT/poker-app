@@ -13,6 +13,7 @@ import type {
   StraddlePrompt,
   RunItPrompt,
   Board,
+  RebuyPrompt,
 } from '@poker/shared';
 
 // =============================================================================
@@ -51,6 +52,9 @@ interface GameStore {
   runItBoards: Board[] | null;
   runItFinalChoice: 1 | 2 | 3 | null;
 
+  // Rebuy prompt (waitForAllRebuys feature)
+  rebuyPrompt: RebuyPrompt | null;
+
   // UI State
   isLoading: boolean;
   error: string | null;
@@ -76,6 +80,7 @@ interface GameStore {
   setRunItPrompt: (prompt: RunItPrompt | null) => void;
   setRunItResult: (boards: Board[], finalChoice: 1 | 2 | 3) => void;
   clearRunItResult: () => void;
+  setRebuyPrompt: (prompt: RebuyPrompt | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   reset: () => void;
@@ -103,6 +108,7 @@ const initialState = {
   sevenDeuceBonus: null,
   runItBoards: null,
   runItFinalChoice: null,
+  rebuyPrompt: null,
   isLoading: false,
   error: null,
 };
@@ -255,6 +261,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       runItBoards: null,
       runItFinalChoice: null,
     }),
+
+  setRebuyPrompt: (prompt) =>
+    set({ rebuyPrompt: prompt }),
 
   setLoading: (loading) =>
     set({ isLoading: loading }),

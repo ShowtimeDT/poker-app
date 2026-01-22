@@ -6,6 +6,7 @@ import type {
   PlayerAction,
   RoomPlayer,
   GameVariant,
+  RebuyPrompt,
 } from '@poker/shared';
 import { RoomManager } from '../services/RoomManager.js';
 
@@ -122,23 +123,26 @@ function startTurnTimer(
         // Auto-start next hand after a delay (same logic as regular action handler)
         if (activeRoom) {
           setTimeout(() => {
-            // Verify room still exists and has enough players
+            // Verify room still exists
             const room = roomManager.getRoom(roomId);
             if (!room) return;
+
+            // Check if waitForAllRebuys is enabled and there are busted players
+            if (room.room.customRules.waitForAllRebuys) {
+              const bustedPlayers = Array.from(room.players.values())
+                .filter(p => p.chips === 0 && p.status !== 'disconnected' && p.status !== 'sitting-out');
+
+              if (bustedPlayers.length > 0) {
+                startRebuyPromptPhase(io, roomManager, roomId, fastify);
+                return;
+              }
+            }
 
             const activePlayers = Array.from(room.players.values()).filter(p => p.status === 'active' && p.chips > 0);
             if (activePlayers.length < 2) {
               // Not enough players to continue - send updated state
               io.to(roomId).emit('game:winner', []);
-              room.players.forEach((player, oderId) => {
-                const personalState = roomManager.getGameState(roomId, oderId);
-                if (personalState) {
-                  const socketId = getSocketId(io, oderId);
-                  if (socketId) {
-                    io.to(socketId).emit('game:state', personalState);
-                  }
-                }
-              });
+              broadcastGameState(io, roomManager, roomId);
               fastify.log.info(`Waiting for more players after auto-fold in room ${room.room.code}`);
               return;
             }
@@ -147,30 +151,26 @@ function startTurnTimer(
             const result = startNextHand(roomManager, roomId, fastify);
             if (result?.state) {
               const { state } = result;
-              // Send personalized state to each player
-              room.players.forEach((player, oderId) => {
-                const personalState = roomManager.getGameState(roomId, oderId);
-                if (personalState) {
-                  const socketId = getSocketId(io, oderId);
-                  if (socketId) {
-                    io.to(socketId).emit('game:state', personalState);
-                  }
-                }
-              });
+              broadcastGameState(io, roomManager, roomId);
 
-              // Start turn timer for first player of new hand
-              if (room.room.customRules.turnTimeEnabled) {
-                const currentPlayer = state.players.find(p => p.seat === state.currentPlayerSeat);
-                if (currentPlayer) {
-                  startTurnTimer(
-                    io,
-                    roomManager,
-                    roomId,
-                    currentPlayer.oderId,
-                    room.room.customRules.turnTimeSeconds,
-                    room.room.customRules.warningTimeSeconds,
-                    fastify
-                  );
+              // Check for straddle phase
+              if (!result.isBombPot && room.room.customRules.straddleEnabled) {
+                handleStraddlePhase(io, roomManager, roomId, fastify);
+              } else {
+                // Start turn timer for first player of new hand
+                if (room.room.customRules.turnTimeEnabled) {
+                  const currentPlayer = state.players.find(p => p.seat === state.currentPlayerSeat);
+                  if (currentPlayer) {
+                    startTurnTimer(
+                      io,
+                      roomManager,
+                      roomId,
+                      currentPlayer.oderId,
+                      room.room.customRules.turnTimeSeconds,
+                      room.room.customRules.warningTimeSeconds,
+                      fastify
+                    );
+                  }
                 }
               }
               fastify.log.info(`Auto-started new hand after auto-fold in room ${room.room.code}`);
@@ -327,6 +327,131 @@ function startRunItTimer(
   });
 }
 
+// =============================================================================
+// REBUY PROMPT FUNCTIONS (waitForAllRebuys feature)
+// =============================================================================
+
+function startRebuyPromptPhase(
+  io: TypedIO,
+  roomManager: RoomManager,
+  roomId: string,
+  fastify: FastifyInstance
+): void {
+  const activeRoom = roomManager.getRoom(roomId);
+  if (!activeRoom) return;
+
+  // Start the rebuy prompt (60 second timeout)
+  const prompt = roomManager.startRebuyPrompt(roomId, 60);
+  if (!prompt) {
+    // No busted players, try to start next hand
+    tryStartNextHand(io, roomManager, roomId, fastify);
+    return;
+  }
+
+  fastify.log.info(`Rebuy prompt started for ${prompt.playerIds.length} player(s) in room ${activeRoom.room.code}`);
+
+  // Broadcast the prompt to all clients
+  io.to(roomId).emit('room:rebuy-prompt', prompt);
+
+  // Set timeout to auto-decline pending players
+  const timer = setTimeout(() => {
+    const currentPrompt = roomManager.getRebuyPrompt(roomId);
+    if (!currentPrompt) return;
+
+    // Auto-decline all pending players
+    currentPrompt.decisions.forEach(d => {
+      if (d.decision === 'pending') {
+        d.decision = 'decline';
+        // Set player to sitting-out
+        const player = activeRoom.players.get(d.playerId);
+        if (player) {
+          player.status = 'sitting-out';
+          roomManager.updatePlayer(roomId, d.playerId, { status: 'sitting-out' });
+        }
+        fastify.log.info(`Auto-declined rebuy for player ${d.playerId} (timeout)`);
+      }
+    });
+
+    finishRebuyPromptPhase(io, roomManager, roomId, fastify);
+  }, 60000);
+
+  roomManager.setRebuyPromptTimer(roomId, timer);
+}
+
+function finishRebuyPromptPhase(
+  io: TypedIO,
+  roomManager: RoomManager,
+  roomId: string,
+  fastify: FastifyInstance
+): void {
+  const activeRoom = roomManager.getRoom(roomId);
+  if (!activeRoom) return;
+
+  // Clear the prompt and timer
+  roomManager.clearRebuyPrompt(roomId);
+
+  // Broadcast that the prompt is cleared
+  io.to(roomId).emit('room:rebuy-prompt', null);
+
+  fastify.log.info(`Rebuy prompt phase finished in room ${activeRoom.room.code}`);
+
+  // Send updated state to all players
+  broadcastGameState(io, roomManager, roomId);
+
+  // Try to start next hand
+  tryStartNextHand(io, roomManager, roomId, fastify);
+}
+
+function tryStartNextHand(
+  io: TypedIO,
+  roomManager: RoomManager,
+  roomId: string,
+  fastify: FastifyInstance
+): void {
+  const activeRoom = roomManager.getRoom(roomId);
+  if (!activeRoom) return;
+
+  const activePlayers = Array.from(activeRoom.players.values())
+    .filter(p => p.status === 'active' && p.chips > 0);
+
+  if (activePlayers.length < 2) {
+    fastify.log.info(`Waiting for more players in room ${activeRoom.room.code} (only ${activePlayers.length} active)`);
+    io.to(roomId).emit('game:winner', []);
+    broadcastGameState(io, roomManager, roomId);
+    return;
+  }
+
+  // Start next hand
+  const result = startNextHand(roomManager, roomId, fastify);
+  if (result?.state) {
+    const { state } = result;
+    broadcastGameState(io, roomManager, roomId);
+
+    // Check for straddle phase (only for non-bomb-pot hands)
+    if (!result.isBombPot && activeRoom.room.customRules.straddleEnabled) {
+      handleStraddlePhase(io, roomManager, roomId, fastify);
+    } else {
+      // Start turn timer for first player
+      if (activeRoom.room.customRules.turnTimeEnabled) {
+        const currentPlayer = state.players.find(p => p.seat === state.currentPlayerSeat);
+        if (currentPlayer) {
+          startTurnTimer(
+            io,
+            roomManager,
+            roomId,
+            currentPlayer.oderId,
+            activeRoom.room.customRules.turnTimeSeconds,
+            activeRoom.room.customRules.warningTimeSeconds,
+            fastify
+          );
+        }
+      }
+    }
+
+    fastify.log.info(`Started new hand in room ${activeRoom.room.code}`);
+  }
+}
+
 function finalizeRunIt(
   io: TypedIO,
   roomManager: RoomManager,
@@ -417,6 +542,18 @@ function scheduleNextHand(
   setTimeout(() => {
     const room = roomManager.getRoom(roomId);
     if (!room) return;
+
+    // Check if waitForAllRebuys is enabled and there are busted players
+    if (room.room.customRules.waitForAllRebuys) {
+      const bustedPlayers = Array.from(room.players.values())
+        .filter(p => p.chips === 0 && p.status !== 'disconnected' && p.status !== 'sitting-out');
+
+      if (bustedPlayers.length > 0) {
+        // Start the rebuy prompt phase instead of starting the next hand
+        startRebuyPromptPhase(io, roomManager, roomId, fastify);
+        return;
+      }
+    }
 
     const activePlayers = Array.from(room.players.values()).filter(p => p.status === 'active' && p.chips > 0);
     if (activePlayers.length < 2) {
@@ -1145,17 +1282,26 @@ function handleRoomEvents(
     io.to(roomId).emit('room:player-rebuy', { playerId: socket.data.oderId, amount });
 
     // Send updated state to all players
-    activeRoom.players.forEach((p, oderId) => {
-      const personalState = roomManager.getGameState(roomId, oderId);
-      if (personalState) {
-        const socketId = getSocketId(io, oderId);
-        if (socketId) {
-          io.to(socketId).emit('game:state', personalState);
-        }
-      }
-    });
+    broadcastGameState(io, roomManager, roomId);
 
-    // Check if we can now start a new hand (2+ players with chips)
+    // Check if waitForAllRebuys is enabled and there's an active rebuy prompt
+    const rebuyPrompt = roomManager.getRebuyPrompt(roomId);
+    if (activeRoom.room.customRules.waitForAllRebuys && rebuyPrompt) {
+      // Record the rebuy decision
+      roomManager.recordRebuyDecision(roomId, socket.data.oderId, 'rebuy', amount);
+
+      // Broadcast updated prompt
+      const updatedPrompt = roomManager.getRebuyPrompt(roomId);
+      io.to(roomId).emit('room:rebuy-prompt', updatedPrompt);
+
+      // Check if all decisions have been made
+      if (roomManager.allRebuyDecisionsMade(roomId)) {
+        finishRebuyPromptPhase(io, roomManager, roomId, fastify);
+      }
+      return;
+    }
+
+    // Original behavior: Check if we can now start a new hand (2+ players with chips)
     // This triggers when phase is 'waiting' OR 'complete' (after a hand just ended)
     const playersWithChips = Array.from(activeRoom.players.values()).filter(p => p.status === 'active' && p.chips > 0);
     const currentState = roomManager.getGameState(roomId);
@@ -1174,42 +1320,98 @@ function handleRoomEvents(
           return;
         }
 
+        // Don't auto-start if waitForAllRebuys is enabled and there's an active prompt
+        if (room.room.customRules.waitForAllRebuys && roomManager.getRebuyPrompt(roomId)) {
+          return;
+        }
+
         const activePlayers = Array.from(room.players.values()).filter(p => p.status === 'active' && p.chips > 0);
         if (activePlayers.length < 2) return;
 
         const result = startNextHand(roomManager, roomId, fastify);
         if (result?.state) {
           const { state } = result;
-          // Send personalized state to each player
-          room.players.forEach((player, oderId) => {
-            const personalState = roomManager.getGameState(roomId, oderId);
-            if (personalState) {
-              const socketId = getSocketId(io, oderId);
-              if (socketId) {
-                io.to(socketId).emit('game:state', personalState);
-              }
-            }
-          });
+          broadcastGameState(io, roomManager, roomId);
 
-          // Start turn timer for first player
-          if (room.room.customRules.turnTimeEnabled) {
-            const currentPlayer = state.players.find(p => p.seat === state.currentPlayerSeat);
-            if (currentPlayer) {
-              startTurnTimer(
-                io,
-                roomManager,
-                roomId,
-                currentPlayer.oderId,
-                room.room.customRules.turnTimeSeconds,
-                room.room.customRules.warningTimeSeconds,
-                fastify
-              );
+          // Check for straddle phase
+          if (!result.isBombPot && room.room.customRules.straddleEnabled) {
+            handleStraddlePhase(io, roomManager, roomId, fastify);
+          } else {
+            // Start turn timer for first player
+            if (room.room.customRules.turnTimeEnabled) {
+              const currentPlayer = state.players.find(p => p.seat === state.currentPlayerSeat);
+              if (currentPlayer) {
+                startTurnTimer(
+                  io,
+                  roomManager,
+                  roomId,
+                  currentPlayer.oderId,
+                  room.room.customRules.turnTimeSeconds,
+                  room.room.customRules.warningTimeSeconds,
+                  fastify
+                );
+              }
             }
           }
 
           fastify.log.info(`Auto-started new hand after rebuy in room ${room.room.code}`);
         }
       }, 1000); // 1 second delay before auto-starting
+    }
+  });
+
+  // Decline rebuy - sit out instead of rebuying
+  socket.on('room:decline-rebuy', () => {
+    const roomId = socket.data.roomId;
+    if (!roomId) {
+      socket.emit('error', { code: 'NOT_IN_ROOM', message: 'Not in a room' });
+      return;
+    }
+
+    const activeRoom = roomManager.getRoom(roomId);
+    if (!activeRoom) {
+      socket.emit('error', { code: 'ROOM_NOT_FOUND', message: 'Room not found' });
+      return;
+    }
+
+    const player = activeRoom.players.get(socket.data.oderId);
+    if (!player) {
+      socket.emit('error', { code: 'NOT_SEATED', message: 'You are not seated at this table' });
+      return;
+    }
+
+    // Only allow decline if in rebuy prompt phase
+    const rebuyPrompt = roomManager.getRebuyPrompt(roomId);
+    if (!rebuyPrompt) {
+      socket.emit('error', { code: 'NO_REBUY_PROMPT', message: 'No rebuy prompt active' });
+      return;
+    }
+
+    // Check if player is part of the rebuy prompt
+    if (!rebuyPrompt.playerIds.includes(socket.data.oderId)) {
+      socket.emit('error', { code: 'NOT_IN_PROMPT', message: 'You are not part of this rebuy prompt' });
+      return;
+    }
+
+    // Record the decline decision
+    roomManager.recordRebuyDecision(roomId, socket.data.oderId, 'decline');
+
+    // Set player to sitting-out
+    player.status = 'sitting-out';
+    roomManager.updatePlayer(roomId, socket.data.oderId, { status: 'sitting-out' });
+
+    fastify.log.info(`${socket.data.odername} declined rebuy (sitting out)`);
+
+    // Broadcast updated prompt
+    const updatedPrompt = roomManager.getRebuyPrompt(roomId);
+    io.to(roomId).emit('room:rebuy-prompt', updatedPrompt);
+
+    // Send updated state
+    broadcastGameState(io, roomManager, roomId);
+
+    // Check if all decisions have been made
+    if (roomManager.allRebuyDecisionsMade(roomId)) {
+      finishRebuyPromptPhase(io, roomManager, roomId, fastify);
     }
   });
 
@@ -1420,26 +1622,27 @@ function handleGameEvents(
       if (activeRoom) {
         const nextHandDelay = 5000 + winnerDelay; // Base 5s + runout animation time
         setTimeout(() => {
-          // Verify room still exists and has enough players
+          // Verify room still exists
           const room = roomManager.getRoom(roomId);
           if (!room) return;
+
+          // Check if waitForAllRebuys is enabled and there are busted players
+          if (room.room.customRules.waitForAllRebuys) {
+            const bustedPlayers = Array.from(room.players.values())
+              .filter(p => p.chips === 0 && p.status !== 'disconnected' && p.status !== 'sitting-out');
+
+            if (bustedPlayers.length > 0) {
+              // Start the rebuy prompt phase instead of starting the next hand
+              startRebuyPromptPhase(io, roomManager, roomId, fastify);
+              return;
+            }
+          }
 
           const activePlayers = Array.from(room.players.values()).filter(p => p.status === 'active' && p.chips > 0);
           if (activePlayers.length < 2) {
             // Not enough players to continue - clear winners and send updated state
             io.to(roomId).emit('game:winner', []);
-
-            // Send updated game state showing waiting phase
-            room.players.forEach((player, oderId) => {
-              const personalState = roomManager.getGameState(roomId, oderId);
-              if (personalState) {
-                const socketId = getSocketId(io, oderId);
-                if (socketId) {
-                  io.to(socketId).emit('game:state', personalState);
-                }
-              }
-            });
-
+            broadcastGameState(io, roomManager, roomId);
             fastify.log.info(`Waiting for rebuy - only ${activePlayers.length} player(s) with chips in room ${room.room.code}`);
             return;
           }
@@ -1448,26 +1651,7 @@ function handleGameEvents(
           const result = startNextHand(roomManager, roomId, fastify);
           if (result?.state) {
             const { state } = result;
-            // Send personalized state to each player
-            room.players.forEach((player, oderId) => {
-              const personalState = roomManager.getGameState(roomId, oderId);
-              if (personalState) {
-                const socketId = getSocketId(io, oderId);
-                if (socketId) {
-                  io.to(socketId).emit('game:state', personalState);
-                }
-              }
-            });
-            // Send to spectators
-            room.spectators.forEach((oderId) => {
-              const spectatorState = roomManager.getGameState(roomId);
-              if (spectatorState) {
-                const socketId = getSocketId(io, oderId);
-                if (socketId) {
-                  io.to(socketId).emit('game:state', spectatorState);
-                }
-              }
-            });
+            broadcastGameState(io, roomManager, roomId);
 
             // Check for straddle phase (only for non-bomb-pot hands)
             if (!result.isBombPot && room.room.customRules.straddleEnabled) {
@@ -1810,6 +1994,23 @@ function handleDisconnect(
 
     // Mark player as disconnected (don't remove immediately for reconnection)
     roomManager.updatePlayer(roomId, socket.data.oderId, { status: 'disconnected' });
+
+    // Handle disconnect during rebuy prompt
+    const rebuyPrompt = roomManager.getRebuyPrompt(roomId);
+    if (rebuyPrompt && rebuyPrompt.playerIds.includes(socket.data.oderId)) {
+      // Auto-decline the disconnected player
+      roomManager.recordRebuyDecision(roomId, socket.data.oderId, 'decline');
+      fastify.log.info(`Auto-declined rebuy for disconnected player ${socket.data.oderId}`);
+
+      // Broadcast updated prompt
+      const updatedPrompt = roomManager.getRebuyPrompt(roomId);
+      io.to(roomId).emit('room:rebuy-prompt', updatedPrompt);
+
+      // Check if all decisions have been made
+      if (roomManager.allRebuyDecisionsMade(roomId)) {
+        finishRebuyPromptPhase(io, roomManager, roomId, fastify);
+      }
+    }
 
     // Send personalized state to each remaining player (preserves their hole cards)
     const activeRoom = roomManager.getRoom(roomId);

@@ -30,6 +30,7 @@ export function useSocket() {
     setRunItPrompt,
     setRunItResult,
     clearRunItResult,
+    setRebuyPrompt,
     setError,
   } = useGameStore();
 
@@ -151,6 +152,12 @@ export function useSocket() {
       updateRoom(data.room);
     });
 
+    // Rebuy prompt (waitForAllRebuys feature)
+    socket.on('room:rebuy-prompt', (prompt: any) => {
+      console.log('[Socket] Rebuy prompt:', prompt);
+      setRebuyPrompt(prompt);
+    });
+
     // Error handling
     socket.on('error', (error) => {
       setError(error.message);
@@ -179,9 +186,10 @@ export function useSocket() {
       socket.off('player:bomb-pot-preference-changed');
       socket.off('player:straddle-preference-changed');
       socket.off('room:settings-updated');
+      socket.off('room:rebuy-prompt');
       socket.off('error');
     };
-  }, [token, setConnection, setRoom, updateRoom, setUser, setGameState, updatePlayer, updatePlayerPreference, removePlayer, addChatMessage, setWinners, setTurnTimer, setTurnTimerWarning, clearTurnTimer, setShownHand, setSevenDeuceBonus, setRunItPrompt, setRunItResult, clearRunItResult, setError]);
+  }, [token, setConnection, setRoom, updateRoom, setUser, setGameState, updatePlayer, updatePlayerPreference, removePlayer, addChatMessage, setWinners, setTurnTimer, setTurnTimerWarning, clearTurnTimer, setShownHand, setSevenDeuceBonus, setRunItPrompt, setRunItResult, clearRunItResult, setRebuyPrompt, setError]);
 
   // Note: We intentionally do NOT disconnect the socket on component unmount.
   // The socket singleton should persist across component re-renders and React
@@ -257,6 +265,11 @@ export function useGameActions() {
     socket.emit('room:rebuy', amount);
   }, [token]);
 
+  const declineRebuy = useCallback(() => {
+    const socket = getSocket(token || undefined);
+    socket.emit('room:decline-rebuy');
+  }, [token]);
+
   const setBombPotPreference = useCallback((enabled: boolean) => {
     const socket = getSocket(token || undefined);
     socket.emit('player:set-bomb-pot-preference', enabled);
@@ -305,6 +318,7 @@ export function useGameActions() {
     startBombPot,
     showHand,
     rebuy,
+    declineRebuy,
     setBombPotPreference,
     setStraddlePreference,
     updateRoomSettings,
