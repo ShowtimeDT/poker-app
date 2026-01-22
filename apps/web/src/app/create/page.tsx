@@ -348,6 +348,13 @@ export default function CreateRoomPage() {
                 checked={customRules.sevenDeuce}
                 onChange={(v) => setCustomRules({ ...customRules, sevenDeuce: v })}
               />
+
+              <RuleToggle
+                label="Wait for All Rebuys"
+                description="Wait for busted players to rebuy or sit out"
+                checked={customRules.waitForAllRebuys}
+                onChange={(v) => setCustomRules({ ...customRules, waitForAllRebuys: v })}
+              />
             </motion.div>
           )}
 
