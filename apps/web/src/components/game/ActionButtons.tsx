@@ -59,13 +59,12 @@ export function ActionButtons({
   // Calculate raise presets based on pot (these are TOTAL amounts)
   const raisePresets = useRaisePresets(effectivePot, minRaiseTotal, maxRaiseTotal);
 
-  // Update raise amount when minRaise changes
+  // Reset raise amount when min raise changes (new hand, new round, or someone raised)
   useEffect(() => {
-    if (raiseToAmount < minRaiseTotal) {
-      setRaiseToAmount(minRaiseTotal);
-      setInputValue(String(minRaiseTotal));
-    }
-  }, [minRaiseTotal, raiseToAmount]);
+    setRaiseToAmount(minRaiseTotal);
+    setInputValue(String(minRaiseTotal));
+    setSelectedPreset(null);
+  }, [minRaiseTotal]);
 
   const handleAction = useCallback((action: ActionType, amount?: number) => {
     playAction(action as any);
