@@ -219,6 +219,7 @@ export class PokerGameState {
     this.pot = 0;
     this.sidePots = [];
     this.currentBet = 0;
+    this.minRaise = this.stakes.bigBlind || this.stakes.ante || 1;
     this.holeCards.clear();
     this.handHistory = [];
     this.isBombPot = !!bombPotAmount;
